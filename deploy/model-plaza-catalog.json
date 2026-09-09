@@ -1,0 +1,15 @@
+[
+  {"group_id":149,"models":["gpt-6-astra","gpt-6","gpt-5.6-sol","gpt-5.6-terra","gpt-5.5","gpt-5.3-codex-spark","codex-auto-review"]},
+  {"group_id":5,"models":["gpt-6-astra","gpt-6","gpt-5.6-sol","gpt-5.6-terra","gpt-5.6","gpt-5.5","gpt-5.4","gpt-5.4-mini","gpt-5.3-codex-spark","gpt-5.2","codex-auto-review"]},
+  {"group_id":88,"models":["gpt-6-astra","gpt-6","gpt-5.6-sol","gpt-5.6-terra","gpt-5.6-luna","gpt-5.6","gpt-5.5","gpt-5.5-pro","gpt-5.4","gpt-5.4-mini","gpt-5.3-codex","gpt-5.3-codex-spark","gpt-5.2","gpt-5.2-pro","codex-auto-review"]},
+  {"group_id":45,"models":["gpt-6-astra","gpt-6","gpt-5.6-sol","gpt-5.6-terra","gpt-5.6","gpt-5.5","gpt-5.5-pro","gpt-5.4","gpt-5.4-mini","gpt-5.3-codex","gpt-5.3-codex-spark","gpt-5.2","gpt-5.2-pro","codex-auto-review"]},
+  {"group_id":26,"models":["gpt-6-astra","gpt-5.6-sol","gpt-5.6-terra","gpt-5.6-luna","gpt-5.5","gpt-5.3-codex-spark","codex-auto-review"],"image_models":["gpt-image-2"]},
+  {"group_id":116,"models":[],"image_models":["gpt-image-2","gpt-image-1.5","gemini-2.5-flash-image","gemini-2.5-flash-image-preview","gemini-3-pro-image","gemini-3-pro-image-preview","gemini-3.1-flash-image","gemini-3.1-flash-image-preview","grok-imagine-image","grok-imagine-image-edit","grok-imagine-image-lite","grok-imagine-image-pro","nano-banana","nano-banana-2","nano-banana-2-lite","nano-banana-pro","seedream-5.0-pro"]},
+  {"group_id":128},
+  {"group_id":95},
+  {"group_id":153},
+  {"group_id":151},
+  {"group_id":144},
+  {"group_id":120},
+  {"group_id":65}
+]

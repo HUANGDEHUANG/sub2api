@@ -1,0 +1,117 @@
+# syntax=docker/dockerfile:1.7
+
+ARG GOLANG_IMAGE=golang:1.27.0-alpine
+ARG ALPINE_IMAGE=alpine:3.21
+ARG POSTGRES_IMAGE=postgres:18-alpine
+ARG GOPROXY=https://goproxy.cn,direct
+ARG GOSUMDB=sum.golang.google.cn
+
+FROM node:24-alpine AS frontend-verified
+WORKDIR /app/frontend
+RUN corepack enable
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN --mount=type=cache,id=buaga-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
+COPY frontend/ ./
+COPY docs/legal/ /app/docs/legal/
+RUN pnpm verify:release
+
+FROM ${GOLANG_IMAGE} AS backend-builder
+ARG VERSION=0.2.3
+ARG COMMIT=buaga-custom-v0.2.3-preserved-20260908
+ARG DATE
+ARG GOPROXY
+ARG GOSUMDB
+ARG TARGETOS
+ARG TARGETARCH
+
+ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=${GOSUMDB}
+
+RUN apk add --no-cache git ca-certificates tzdata
+WORKDIR /app/backend
+COPY backend/go.mod backend/go.sum ./
+RUN --mount=type=cache,id=sub2api-v022-gomod,target=/go/pkg/mod go mod download
+COPY backend/ ./
+# Replace copied artifacts only inside this image build; never merge old hashed chunks.
+RUN rm -rf /app/backend/internal/web/dist
+COPY --from=frontend-verified /app/backend/internal/web/dist/ ./internal/web/dist/
+RUN --mount=type=cache,id=sub2api-v022-gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=sub2api-v022-gobuild,target=/root/.cache/go-build \
+    GOMAXPROCS=4 go test -tags unit -p 2 ./internal/service ./internal/handler/admin ./internal/handler -run 'Test(RuntimeHardening|LongNotice|.*Setting.*|LoginCaptcha|VerifyCaptcha|VerifyActionCaptcha|RelayCapability|SyncUpstreamModelCatalog|FetchModelsDevMetadata|LookupModelsDev|MatchModelsDev|UpstreamMetadata|AccountHandler.*Models|ExtractUpstreamModelIDs|ExtractGrokUpstreamModelIDs)' -count=1 -timeout=10m
+RUN grep -Fq 'VerifyCaptchaForLogin' internal/handler/auth_handler.go \
+    && grep -Fq 'login_captcha_enabled' internal/handler/dto/settings.go \
+    && grep -Fq 'TestLoginCaptchaPolicy' internal/service/login_captcha_test.go
+# Fail closed unless the generated frontend contains every approved BUAGA feature.
+RUN cd ./internal/web/dist \
+    && test -f index.html \
+    && grep -Fq 'BuaGa' index.html \
+    && set -- assets/HomeView-*.js && test "$#" -eq 1 && test -f "$1" \
+    && set -- assets/LoginView-*.js && test "$#" -eq 1 && test -f "$1" && grep -Fq 'BuaGa' "$1" && grep -Fq 'login_captcha_enabled' "$1" \
+    && set -- assets/AppLayout*.js && test "$#" -eq 1 && test -f "$1" && grep -Fq 'long_notice_content' "$1" \
+    && set -- assets/AnnouncementsView-*.js && test "$#" -eq 1 && test -f "$1" && grep -Fq 'long_notice_content' "$1" \
+    && set -- assets/SettingsView-*.js && test "$#" -eq 1 && test -f "$1" && grep -Fq 'long_notice_content' "$1" \
+    && set -- assets/ChannelMonitorView-*.js && test "$#" -eq 1 && test -f "$1" && grep -Fq 'monitor-sort-handle' "$1" \
+    && grep -Fq '/admin/channel-monitors/sort-order' assets/index-*.js
+RUN --mount=type=cache,id=sub2api-v022-gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=sub2api-v022-gobuild,target=/root/.cache/go-build \
+    DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
+    -tags embed \
+    -ldflags="-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
+    -trimpath \
+    -o /app/sub2api \
+    ./cmd/server
+
+FROM ${POSTGRES_IMAGE} AS pg-client
+
+FROM backend-builder AS plaza-tests
+RUN --mount=type=cache,id=sub2api-v022-gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=sub2api-v022-gobuild,target=/root/.cache/go-build \
+    GOMAXPROCS=2 go test -p 2 -tags unit ./internal/service ./internal/handler \
+    -run 'Test(ParsePlazaCatalog|PlazaCatalog|ListPlazaGroups|ListGroups_|FilterPlaza|ToModelPlaza|ModelPlazaHandler|WithDefaultMaxReasoning)' -count=1
+
+FROM backend-builder AS upgrade-tests
+RUN --mount=type=cache,id=sub2api-v022-gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=sub2api-v022-gobuild,target=/root/.cache/go-build \
+    GOMAXPROCS=4 go test -tags unit -p 2 -count=1 -timeout=10m ./internal/service ./internal/handler ./internal/config ./internal/handler/admin ./migrations \
+    -run 'Test.*(Ollama|FetchOpenAIAccountModels|TransientRefinement|AccountTransient|AccountScheduler|WithScheduler|LoadAwareness|PreviousResponseID|TransientError|ModelTransient|Availability|PoolMode|AcquireResponsesAccountSlot|OpenAIAccountRuntime|SchedulingConfig|ProvideConcurrencyService|CleanupStaleProcess|AvailableModels|GroupModelAllowlist|Plaza)'
+
+FROM ${ALPINE_IMAGE} AS runtime
+LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
+LABEL description="Sub2API - BUAGA customized AI API Gateway"
+LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
+
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    su-exec \
+    libpq \
+    zstd-libs \
+    lz4-libs \
+    krb5-libs \
+    libldap \
+    libedit \
+    && rm -rf /var/cache/apk/*
+
+COPY --from=pg-client /usr/local/bin/pg_dump /usr/local/bin/pg_dump
+COPY --from=pg-client /usr/local/bin/psql /usr/local/bin/psql
+COPY --from=pg-client /usr/local/lib/libpq.so.5* /usr/local/lib/
+
+RUN addgroup -g 1000 sub2api && adduser -u 1000 -G sub2api -s /bin/sh -D sub2api
+WORKDIR /app
+COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
+COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources
+# Keep an inspectable copy of the approved UI inside the candidate image.
+# The switch validator reads this without starting the application.
+COPY --from=backend-builder /app/backend/internal/web/dist/ /app/.buaga-release/
+RUN mkdir -p /app/data && chown sub2api:sub2api /app/data
+COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget -q -T 5 -O /dev/null http://localhost:${SERVER_PORT:-8080}/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["/app/sub2api"]

@@ -1,0 +1,16 @@
+{
+  "checked_at": 1788939066.8508391,
+  "pending": [
+    {
+      "name": "sub2api-v023-announcement-close-20260909",
+      "nginx_referenced": false,
+      "inbound_connections": 32
+    },
+    {
+      "name": "sub2api-v023-runtime-hardening-20260909",
+      "nginx_referenced": false,
+      "inbound_connections": 1
+    }
+  ],
+  "completed": false
+}
