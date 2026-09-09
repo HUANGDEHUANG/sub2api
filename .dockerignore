@@ -44,6 +44,8 @@ backend/vendor/
 
 # Test files
 *_test.go
+# Candidate builds execute backend regressions; never omit their sources.
+!backend/**/*_test.go
 **/*.test.js
 coverage/
 .nyc_output/

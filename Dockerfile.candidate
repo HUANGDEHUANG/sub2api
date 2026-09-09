@@ -17,8 +17,8 @@ COPY docs/legal/ /app/docs/legal/
 RUN pnpm verify:release
 
 FROM ${GOLANG_IMAGE} AS backend-builder
-ARG VERSION=0.2.3
-ARG COMMIT=buaga-custom-v0.2.3-preserved-20260908
+ARG VERSION=0.2.4
+ARG COMMIT=buaga-custom-v0.2.4-preserved-20260909
 ARG DATE
 ARG GOPROXY
 ARG GOSUMDB
