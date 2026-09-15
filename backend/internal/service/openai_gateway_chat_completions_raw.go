@@ -157,6 +157,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		if err != nil {
 			return nil, fmt.Errorf("normalize Grok chat reasoning effort: %w", err)
 		}
+		upstreamBody, err = sanitizeGrokUnsupportedFields(upstreamBody)
+		if err != nil {
+			return nil, fmt.Errorf("sanitize Grok unsupported fields: %w", err)
+		}
 	}
 	upstreamBody = applyOllamaCloudRawChatCompletionsRequest(account, upstreamBody)
 	upstreamBody = clampOllamaCloudUpstreamMaxTokens(account, upstreamBody)
@@ -284,6 +288,8 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	scanner := s.newUpstreamSSEScanner(resp.Body)
 
 	var usage OpenAIUsage
+	usagePresent := false
+	observedBytes := 0
 	var firstTokenMs *int
 	clientDisconnected := false
 	clientOutputStarted := false
@@ -330,10 +336,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			trimmedPayload := strings.TrimSpace(payload)
 			terminal.ObserveDataLine(trimmedPayload)
 			if trimmedPayload != "[DONE]" {
+				observedBytes += responseBodyBytesForUsageEstimate([]byte(payload))
 				observer.ObserveOpenAI([]byte(payload), strings.TrimSpace(gjson.Get(payload, "type").String()))
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
+					usagePresent = true
 				}
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
@@ -361,6 +369,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			RequestID:                     requestID,
 			UpstreamHeaders:               resp.Header,
 			Usage:                         usage,
+			UsagePresent:                  usagePresent,
 			Model:                         originalModel,
 			BillingModel:                  billingModel,
 			UpstreamModel:                 upstreamModel,
@@ -372,6 +381,8 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			Stream:                        true,
 			Duration:                      time.Since(startTime),
 			FirstTokenMs:                  firstTokenMs,
+			ClientDisconnect:              clientDisconnected,
+			ObservedResponseBytes:         observedBytes,
 		}
 	}
 
@@ -505,8 +516,10 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	observer.ObserveOpenAI(respBody, strings.TrimSpace(gjson.GetBytes(respBody, "type").String()))
 
 	var usage OpenAIUsage
+	usagePresent := false
 	if parsedUsage, ok := extractOpenAIUsageFromJSONBytes(respBody); ok {
 		usage = parsedUsage
+		usagePresent = true
 	}
 	responseModel := gjson.GetBytes(respBody, "model").String()
 	if requiresBillableGrokChatUsage(account, billingModel, upstreamModel, responseModel) && !hasBillableGrokChatUsage(usage) {
@@ -530,6 +543,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		RequestID:                     requestID,
 		UpstreamHeaders:               resp.Header,
 		Usage:                         usage,
+		UsagePresent:                  usagePresent,
 		Model:                         originalModel,
 		BillingModel:                  billingModel,
 		UpstreamModel:                 upstreamModel,
@@ -540,6 +554,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		ServiceTier:                   resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		Stream:                        false,
 		Duration:                      time.Since(startTime),
+		ObservedResponseBytes:         responseBodyBytesForUsageEstimate(respBody),
 	}, nil
 }
 

@@ -29,8 +29,11 @@ import (
 // openaiStreamingResult streaming response result
 type openaiStreamingResult struct {
 	usage            *OpenAIUsage
+	usagePresent     bool
 	firstTokenMs     *int
 	responseID       string
+	clientDisconnect bool
+	observedBytes    int
 	imageCount       int
 	imageOutputSizes []string
 	searchCount      int
@@ -39,7 +42,9 @@ type openaiStreamingResult struct {
 type openaiNonStreamingResult struct {
 	*OpenAIUsage
 	usage            *OpenAIUsage
+	usagePresent     bool
 	responseID       string
+	observedBytes    int
 	imageCount       int
 	imageOutputSizes []string
 	searchCount      int
@@ -353,14 +358,19 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	streamImageOutputs := make([]json.RawMessage, 0, 1)
 	streamSeenImages := make(map[string]struct{})
 	searchCounter := 0
+	usagePresent := false
+	observedBytes := 0
 	// Dedup search tool calls across SSE events (item.done + response.completed
 	// both list the same call_id — counting both would ~2× the surcharge).
 	streamSearchSeen := make(map[string]struct{})
 	resultWithUsage := func() *openaiStreamingResult {
 		return &openaiStreamingResult{
 			usage:            usage,
+			usagePresent:     usagePresent,
 			firstTokenMs:     firstTokenMs,
 			responseID:       responseID,
+			clientDisconnect: clientDisconnected,
+			observedBytes:    observedBytes,
 			imageCount:       imageCounter.Count(),
 			imageOutputSizes: imageCounter.Sizes(),
 			searchCount:      searchCounter,
@@ -488,6 +498,10 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		// Extract data from SSE line (supports both "data: " and "data:" formats)
 		if data, ok := extractOpenAISSEDataLine(line); ok {
 			dataBytes := []byte(data)
+			observedBytes += responseBodyBytesForUsageEstimate(dataBytes)
+			if _, ok := extractOpenAIUsageFromJSONBytes(dataBytes); ok {
+				usagePresent = true
+			}
 			eventType := effectiveOpenAISSEEventType(dataBytes, pendingSSEEventType)
 			if codexFailureTerminal && sawBareError && !sawResponseFailed &&
 				(eventType == "response.completed" || eventType == "response.done") {
@@ -620,6 +634,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				line = "data: " + data
 			}
 			imageCounter.AddSSEData(dataBytes)
+			CaptureOpenAIImagePreviewResponse(c, dataBytes)
 			searchCounter += countGrokNativeSearchCallsInSSEDataDedup(dataBytes, streamSearchSeen)
 
 			// Correct Codex tool calls if needed (apply_patch -> edit, etc.)
@@ -1639,6 +1654,8 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		return nil, fmt.Errorf("parse response: invalid json response")
 	}
 	usage := &usageValue
+	setObservedResponseBytes(c, responseBodyBytesForUsageEstimate(body))
+	setUsagePresent(c, usageOK)
 	logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, "json", false)
 
 	// Replace model in response if needed
@@ -1671,12 +1688,15 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	}
 
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
+		CaptureOpenAIImagePreviewResponse(c, body)
 		c.Data(resp.StatusCode, contentType, body)
 	}
 
 	return &openaiNonStreamingResult{
 		OpenAIUsage:      usage,
 		usage:            usage,
+		usagePresent:     usageOK,
+		observedBytes:    responseBodyBytesForUsageEstimate(body),
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
 		imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
@@ -1724,9 +1744,18 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 
 	usage := s.parseSSEUsageFromBody(bodyText)
+	usagePresent := false
+	observedBytes := 0
+	forEachOpenAISSEFrame(bodyText, func(_ string, data []byte) {
+		observedBytes += responseBodyBytesForUsageEstimate(data)
+		if _, parsed := extractOpenAIUsageFromJSONBytes(data); parsed {
+			usagePresent = true
+		}
+	})
 	if ok {
 		if parsedUsage, parsed := extractOpenAIUsageFromJSONBytes(finalResponse); parsed {
 			*usage = parsedUsage
+			usagePresent = true
 		}
 		// When the terminal event has an empty output array, reconstruct
 		// output from accumulated delta events so the client gets full content.
@@ -1767,6 +1796,8 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 	}
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+	setObservedResponseBytes(c, observedBytes)
+	setUsagePresent(c, usagePresent)
 	logOpenAISuccessMissingUsage(c.Request.Context(), c, account, resp, usage, terminalType, false)
 	s.relayOpenAICodexTurnState(c, account, resp.Header)
 
@@ -1778,12 +1809,15 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		}
 	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
+		CaptureOpenAIImagePreviewResponse(c, body)
 		c.Data(resp.StatusCode, contentType, body)
 	}
 
 	return &openaiNonStreamingResult{
 		OpenAIUsage:      usage,
 		usage:            usage,
+		usagePresent:     usagePresent,
+		observedBytes:    observedBytes,
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIImageOutputsFromSSEBody(bodyText),
 		imageOutputSizes: collectOpenAIImageOutputSizesFromSSEBody(bodyText),

@@ -150,6 +150,7 @@
               <button
                 v-for="(src, index) in row.image_previews"
                 :key="src"
+                :ref="(el) => observeImagePreview(el, src)"
                 type="button"
                 class="h-12 w-12 overflow-hidden rounded border border-gray-200 bg-gray-50 transition hover:border-primary-400 dark:border-dark-600 dark:bg-dark-800"
                 :title="`预览图片 ${index + 1}`"
@@ -649,48 +650,51 @@ const copiedRequestId = ref<string | null>(null)
 const previewImage = ref('')
 const previewVideo = ref('')
 const previewVideoError = ref('')
-const previewSources = ref<Record<string, string>>({})
 const previewVideoSources = ref<Record<string, string>>({})
 const previewLoading = new Map<string, Promise<void>>()
-const previewQueue: Array<() => void> = []
-let activePreviewLoads = 0
-const runPreviewTask = <T>(task: () => Promise<T>): Promise<T> => new Promise((resolve, reject) => {
-  const start = () => {
-    activePreviewLoads += 1
-    task().then(resolve, reject).finally(() => {
-      activePreviewLoads -= 1
-      const next = previewQueue.shift()
-      if (next) next()
-    })
+const previewSources = ref<Record<string, string>>({})
+const previewRequests = new Map<string, AbortController>()
+let visiblePreviewPaths = new Set<string>()
+let previewDisposed = false
+const previewObserver = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) {
+      const src = (entry.target as HTMLElement).dataset.previewSrc
+      if (src) void loadImagePreview(src)
+      previewObserver?.unobserve(entry.target)
+    }
   }
-  if (activePreviewLoads < 6) start()
-  else previewQueue.push(start)
-})
+}, { rootMargin: '100px' })
+
+const observeImagePreview = (el: unknown, src: string) => {
+  if (!(el instanceof HTMLElement)) return
+  el.dataset.previewSrc = src
+  if (previewObserver) previewObserver.observe(el)
+  else void loadImagePreview(src)
+}
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
 const ipGeoBatchLoading = ref(false)
 
 const openImagePreview = (src: string) => {
-	void loadImagePreview(src)
   const resolved = previewSources.value[src]
   if (resolved) previewImage.value = resolved
 }
 
 const loadImagePreview = async (src: string) => {
-  if (previewSources.value[src]) return
-  const pending = previewLoading.get(`image:${src}`)
-  if (pending) return pending
-  const task = (async () => {
-    try {
-      const response = await runPreviewTask(() => apiClient.get(src.replace(/^\/api\/v1/, ''), { responseType: 'blob' }))
+  if (previewDisposed || !visiblePreviewPaths.has(src) || previewSources.value[src] || previewRequests.has(src)) return
+  const controller = new AbortController()
+  previewRequests.set(src, controller)
+  try {
+    const response = await apiClient.get(src.replace(/^\/api\/v1/, ''), { responseType: 'blob', signal: controller.signal })
+    if (!previewDisposed && !controller.signal.aborted && visiblePreviewPaths.has(src)) {
       previewSources.value = { ...previewSources.value, [src]: URL.createObjectURL(response.data) }
-    } catch {
-      // Missing or expired previews should not affect the usage table.
     }
-  })()
-  previewLoading.set(`image:${src}`, task)
-  await task
-  previewLoading.delete(`image:${src}`)
+  } catch {
+    // Missing or expired previews should not affect the usage table.
+  } finally {
+    if (previewRequests.get(src) === controller) previewRequests.delete(src)
+  }
 }
 
 const openVideoPreview = async (src: string) => {
@@ -699,7 +703,7 @@ const openVideoPreview = async (src: string) => {
   delete previewVideoSources.value[src]
   await loadVideoPreview(src)
   const resolved = previewVideoSources.value[src]
-  if (resolved) previewVideo.value = resolved
+  if (resolved && !previewDisposed) previewVideo.value = resolved
 }
 
 const loadVideoPreview = async (src: string) => {
@@ -713,9 +717,9 @@ const loadVideoPreview = async (src: string) => {
       if (!videoURL.startsWith('/api/v1/admin/usage/') || !videoURL.endsWith('/videos/0/content')) {
         throw new Error('Invalid playback endpoint')
       }
-      previewVideoSources.value = { ...previewVideoSources.value, [src]: videoURL }
+      if (!previewDisposed) previewVideoSources.value = { ...previewVideoSources.value, [src]: videoURL }
     } catch {
-      appStore.showError('视频预览暂不可用，仅支持最近 7 天的记录。请稍后重试。')
+      if (!previewDisposed) appStore.showError('视频预览暂不可用，仅支持最近 7 天的记录。请稍后重试。')
     }
   })()
   previewLoading.set(`video:${src}`, task)
@@ -724,20 +728,26 @@ const loadVideoPreview = async (src: string) => {
 }
 
 watch(() => props.data, (rows) => {
-  // Preload the current page's thumbnails (up to 20 records), with request de-duplication above.
-  rows.flatMap((row) => row.image_previews || []).slice(0, 20).forEach((src) => { void loadImagePreview(src) })
-  const active = new Set(rows.flatMap((row) => row.image_previews || []))
-  for (const [key, value] of Object.entries(previewSources.value)) {
-    if (!active.has(key)) {
-      URL.revokeObjectURL(value)
-      const next = { ...previewSources.value }
-      delete next[key]
-      previewSources.value = next
-    }
+  previewObserver?.disconnect()
+  visiblePreviewPaths = new Set(rows.flatMap((row) => row.image_previews || []))
+  previewImage.value = ''
+  previewVideo.value = ''
+  previewVideoSources.value = {}
+  for (const [src, controller] of previewRequests) {
+    if (!visiblePreviewPaths.has(src)) { controller.abort(); previewRequests.delete(src) }
   }
+  const retained: Record<string, string> = {}
+  for (const [src, url] of Object.entries(previewSources.value)) {
+    if (visiblePreviewPaths.has(src)) retained[src] = url
+    else URL.revokeObjectURL(url)
+  }
+  previewSources.value = retained
 }, { immediate: true })
 
 onBeforeUnmount(() => {
+  previewDisposed = true
+  previewObserver?.disconnect()
+  previewRequests.forEach(controller => controller.abort())
   Object.values(previewSources.value).forEach((src) => URL.revokeObjectURL(src))
 })
 

@@ -97,6 +97,7 @@ export default {
     unreadOnly: 'Show unread only',
     markRead: 'Mark as read',
     markAllRead: 'Mark all as read',
+    noUnread: 'No unread announcements',
     viewAll: 'View all announcements',
     markedAsRead: 'Marked as read',
     allMarkedAsRead: 'All announcements marked as read',

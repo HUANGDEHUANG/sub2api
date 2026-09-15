@@ -87,7 +87,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      ...(env.VITE_SKIP_TYPECHECK === 'true' ? [] : [checker({ vueTsc: true })]),
+      checker({
+        vueTsc: true
+      }),
       injectPublicSettings(backendUrl, env.VITE_LOCAL_PREVIEW !== 'true')
     ],
   resolve: {

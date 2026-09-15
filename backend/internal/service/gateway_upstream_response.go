@@ -700,6 +700,12 @@ func partialStreamUsageResult(c *gin.Context, resp *http.Response, streamResult 
 }
 
 func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
+	observedBytes := 0
+	usagePresent := false
+	defer func() {
+		setObservedResponseBytes(c, observedBytes)
+		setUsagePresent(c, usagePresent)
+	}()
 	observer := upstreamResponseModelObserverFromContext(c)
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
@@ -1081,6 +1087,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					}
 					return nil, err
 				}
+				if data != "" && data != "[DONE]" {
+					observedBytes += responseBodyBytesForUsageEstimate([]byte(data))
+				}
 
 				for _, block := range outputBlocks {
 					if !clientDisconnected {
@@ -1103,6 +1112,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 							firstTokenMs = &ms
 						}
 						if usagePatch != nil {
+							usagePresent = true
 							mergeSSEUsagePatch(usage, usagePatch)
 						}
 					}

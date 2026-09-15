@@ -766,8 +766,12 @@ func TestSyncUpstreamModelCatalogDoesNotOverwriteSnapshotWhenRegistryFails(t *te
 	require.Equal(t, []string{"x-preview-f-free"}, catalog.Models)
 	require.Empty(t, catalog.Metadata)
 	require.Equal(t, []UpstreamModelSyncWarning{{
-		Code:    UpstreamModelMetadataIncompleteCode,
-		Message: "Model IDs were synced, but capability metadata is incomplete.",
+		Code:          UpstreamModelMetadataIncompleteCode,
+		Message:       "Model IDs were synced, but capability metadata is incomplete.",
+		ModelIDs:      []string{"x-preview-f-free"},
+		CompleteCount: 0,
+		TotalCount:    1,
+		Reason:        "registry_unavailable",
 	}}, catalog.Warnings)
 	require.Nil(t, repo.updates, "a failed metadata enrichment must not erase a previously saved snapshot")
 }

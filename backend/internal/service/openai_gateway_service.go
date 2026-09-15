@@ -275,6 +275,10 @@ type OpenAIForwardResult struct {
 	Duration              time.Duration
 	FirstTokenMs          *int
 	ClientDisconnect      bool
+	UsagePresent          bool   // 上游是否实际返回了 usage 对象
+	UsageSource           string // upstream 或 estimated
+	RequestBytes          int    // 请求体字节数（仅用于缺失 usage 的估算）
+	ObservedResponseBytes int    // 已读取的上游响应字节数（仅用于缺失 usage 的估算）
 	ImageCount            int
 	ImageSize             string
 	ImageInputSize        string

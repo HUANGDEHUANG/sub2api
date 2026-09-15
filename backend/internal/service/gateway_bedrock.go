@@ -393,6 +393,8 @@ func (s *GatewayService) handleBedrockNonStreamingResponse(
 	body = transformBedrockInvocationMetrics(body)
 
 	usage := parseClaudeUsageFromResponseBody(body)
+	setObservedResponseBytes(c, responseBodyBytesForUsageEstimate(body))
+	setUsagePresent(c, claudeUsagePresentInJSON(body))
 
 	c.Header("Content-Type", "application/json")
 	if v := resp.Header.Get("x-amzn-requestid"); v != "" {

@@ -62,14 +62,14 @@ import { useAuthStore } from '@/stores'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { AdminGroup, GroupPlatform } from '@/types'
+import type { Group, GroupPlatform } from '@/types'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
 
 interface Props {
   modelValue: number[]
-  groups: AdminGroup[]
+  groups: (Group & { account_count?: number })[]
   platform?: GroupPlatform // Optional platform filter
   mixedScheduling?: boolean // For antigravity accounts: allow anthropic/gemini groups
   searchable?: boolean | 'auto'
@@ -91,10 +91,9 @@ const isSearchable = computed(() => {
 
 // Filter groups by platform if specified
 const filteredGroups = computed(() => {
-  let result: AdminGroup[] = props.groups
-  if (authStore.isSimpleMode) {
-    result = result.filter((group) => group.platform !== 'composite')
-  }
+  let result = authStore.isSimpleMode
+    ? props.groups.filter((g) => g.platform !== 'composite')
+    : props.groups
   if (props.platform) {
     // antigravity 账户启用混合调度后，可选择 anthropic/gemini 分组
     if (props.platform === 'antigravity' && props.mixedScheduling) {

@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -39,9 +40,19 @@ const (
 	openAIImageBackendUserAgent            = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 	openAIImageMaxDownloadBytes            = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize           = 20 << 20 // 20MB per multipart upload part
-	openAIImagesResponsesMainModel         = "gpt-5.4-mini"
+	openAIImagesResponsesMainModel         = "gpt-5.6-luna"
 	openAIImagesVerbatimPromptInstructions = "When invoking the image_generation tool, use the user's image prompt verbatim. Do not rewrite, expand, summarize, embellish, translate, normalize punctuation, or add or remove visual details or constraints. Preserve the original language, wording, capitalization, quotes, and punctuation exactly."
 )
+
+// openAIImagesResponsesMainModelValue selects the Responses driver independently
+// of the image_generation tool model. An environment override lets operators
+// recover from upstream model retirement without rebuilding the gateway.
+func openAIImagesResponsesMainModelValue() string {
+	if model := strings.TrimSpace(os.Getenv("SUB2API_IMAGES_MAIN_MODEL")); model != "" {
+		return model
+	}
+	return openAIImagesResponsesMainModel
+}
 
 type OpenAIImagesCapability string
 
@@ -556,7 +567,9 @@ func (s *OpenAIGatewayService) ForwardImages(
 	body []byte,
 	parsed *OpenAIImagesRequest,
 	channelMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (result *OpenAIForwardResult, err error) {
+	clearOpenAIImagePreviews(c)
+	defer func() { persistCapturedImagePreviews(ctx, c, result) }()
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
@@ -918,6 +931,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(
 			contentType = upstreamType
 		}
 	}
+	CaptureOpenAIImagePreviewResponse(c, body)
 	c.Data(resp.StatusCode, contentType, body)
 
 	usage, _ := extractOpenAIUsageFromJSONBytes(body)
@@ -960,6 +974,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 		fallbackBytes = 0
 		mergeOpenAIUsage(&usage, dataBytes)
 		imageCounter.AddSSEData(dataBytes)
+		CaptureOpenAIImagePreviewResponse(c, dataBytes)
 	}
 
 	flushSSEEvent := func() {
@@ -1010,6 +1025,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 		}
 		mergeOpenAIUsage(&usage, body)
 		imageCounter.AddJSONResponse(body)
+		CaptureOpenAIImagePreviewResponse(c, body)
 	}
 
 	streamInterval := s.openAIImageStreamDataInterval()
@@ -1361,7 +1377,8 @@ func normalizeOpenAIImageBase64(raw string) string {
 		}
 	}
 	raw = strings.TrimSpace(raw)
-	raw = strings.TrimRight(raw, "=") + strings.Repeat("=", (4-len(raw)%4)%4)
+	raw = strings.TrimRight(raw, "=")
+	raw += strings.Repeat("=", (4-len(raw)%4)%4)
 	if raw == "" {
 		return ""
 	}
@@ -1400,6 +1417,9 @@ func walkOpenAIImageInlineAssets(node any, prompt string, out *[]openAIImagePoin
 			DownloadURL: firstNonEmptyString(value["download_url"], value["url"], value["image_url"]),
 			B64JSON:     firstNonEmptyString(value["b64_json"], value["base64"], value["image_base64"]),
 			MimeType:    firstNonEmptyString(value["mime_type"], value["mimeType"], value["content_type"]),
+		}
+		if value["type"] == "image_generation_call" && item.B64JSON == "" {
+			item.B64JSON = firstNonEmptyString(value["result"])
 		}
 		switch {
 		case strings.HasPrefix(strings.TrimSpace(item.Pointer), "file-service://"),

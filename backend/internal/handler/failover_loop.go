@@ -80,6 +80,9 @@ func sameAccountRetryAllowed(failoverErr *service.UpstreamFailoverError, retryCo
 	if failoverErr == nil || !failoverErr.RetryableOnSameAccount {
 		return false
 	}
+	if service.IsUpstreamInsufficientBalance(failoverErr.StatusCode, failoverErr.ResponseBody) {
+		return false
+	}
 	if !sameAccountRetryDeadlineAllows(failoverErr) {
 		return false
 	}
