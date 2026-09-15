@@ -116,15 +116,13 @@ func TestTeamLinkedError_FanoutMarksSameTeamAccounts(t *testing.T) {
 
 func TestTeamLinkedError_GenericPaymentErrorDoesNotFanout(t *testing.T) {
 	repo := &teamLinkedAccountRepoStub{teamAccounts: newTeamLinkedFixture()}
-	rl, blocker := newTeamLinkedTestService(repo)
+	rl, _ := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(1, "team-A")
 
 	rl.HandleUpstreamError(context.Background(), &trigger, http.StatusPaymentRequired, http.Header{}, []byte(`{"error":{"message":"insufficient balance"}}`))
 
-	require.Empty(t, repo.setErrorIDs, "insufficient balance uses the custom temporary cooldown, not a permanent auth error")
-	require.Equal(t, []string{"upstream_insufficient_balance"}, blocker.reasons)
-	require.Len(t, blocker.accounts, 1)
-	require.Equal(t, int64(1), blocker.accounts[0].ID)
+	require.Equal(t, []int64{1}, repo.setErrorIDs)
+	require.Contains(t, repo.setErrorMsgs[1], "Payment required (402)")
 	require.Zero(t, repo.listCalls)
 }
 

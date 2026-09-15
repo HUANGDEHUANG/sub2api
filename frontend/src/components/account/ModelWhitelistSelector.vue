@@ -149,7 +149,6 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { accountsAPI } from '@/api/admin/accounts'
-import { formatUpstreamModelSyncWarning } from '@/utils/upstreamModelSync'
 import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import { useClipboard } from '@/composables/useClipboard'
 import ModelIcon from '@/components/common/ModelIcon.vue'
@@ -209,8 +208,7 @@ const upstreamSyncPlatforms = new Set([
   'grok',
   'kimi',
   'zhipu',
-  'deepseek',
-  'minimax'
+  'deepseek'
 ])
 const canSyncUpstream = computed(() => {
   if (props.accountId) {
@@ -337,7 +335,7 @@ const syncUpstreamModels = async () => {
       warning => warning.code === 'upstream_model_metadata_incomplete'
     )
     if (hasIncompleteMetadata) {
-      appStore.showWarning(formatUpstreamModelSyncWarning(warnings, t))
+      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataIncomplete'))
       return
     }
     if (addedCount > 0) {
@@ -346,7 +344,7 @@ const syncUpstreamModels = async () => {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
     }
     if (hasPartialMetadata) {
-      appStore.showWarning(formatUpstreamModelSyncWarning(warnings, t))
+      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataPartial'))
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : t('admin.accounts.syncUpstreamModelsFailed')

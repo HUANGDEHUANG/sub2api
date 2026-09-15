@@ -32,7 +32,7 @@
             <p v-if="announcements.length === 0" class="py-14 text-center text-sm text-gray-400">{{ t('announcements.noHistory') }}</p>
           </template>
         </div>
-        <footer class="flex items-center justify-between border-t border-gray-100 px-4 py-3 dark:border-dark-700"><button type="button" :disabled="unreadCount === 0" class="text-xs font-medium text-blue-600 disabled:cursor-default disabled:text-gray-400 dark:disabled:text-gray-500" @click="markAllAsRead">{{ t(unreadCount ? 'announcements.markAllRead' : 'announcements.noUnread') }}</button><button class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900" @click="close">{{ t('common.close') }}</button></footer>
+        <footer class="flex items-center justify-between border-t border-gray-100 px-4 py-3 dark:border-dark-700"><button v-if="unreadCount" class="text-xs font-medium text-blue-600" @click="markAllAsRead">{{ t('announcements.markAllRead') }}</button><span v-else></span><button class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900" @click="close">{{ t('common.close') }}</button></footer>
       </section>
     </Transition>
   </div>

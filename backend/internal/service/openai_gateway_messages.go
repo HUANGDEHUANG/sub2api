@@ -32,12 +32,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-) (out *OpenAIForwardResult, err error) {
-	clearUsageEstimateAttempt(c)
-	requestBytes := requestBodyBytesForUsageEstimate(body)
-	defer func() {
-		s.finalizeUsageEstimate(ctx, c, account, requestBytes, out, err)
-	}()
+) (*OpenAIForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {

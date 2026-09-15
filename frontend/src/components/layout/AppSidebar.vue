@@ -315,6 +315,38 @@ const BatchImageIcon = {
     )
 }
 
+const VideoTaskIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('rect', { x: '3', y: '6', width: '12', height: '12', rx: '2' }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M15 10l6-3v10l-6-3'
+        })
+      ]
+    )
+}
+
+const SchedulerMonitorIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('rect', { x: '3', y: '3', width: '18', height: '14', rx: '2' }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M8 21h8m-4-4v4M6 10h3l2-4 2 8 2-4h3'
+        })
+      ]
+    )
+}
+
 const ChartIcon = {
   render: () =>
     h(
@@ -775,7 +807,8 @@ const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
-    { path: '/admin/scheduler', label: t('nav.scheduler'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
+    { path: '/admin/scheduler', label: t('nav.scheduler'), icon: SchedulerMonitorIcon, featureFlag: flagOpsMonitoring },
+    { path: '/admin/video-tasks', label: t('admin.videoTasks.title'), icon: VideoTaskIcon },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
     {

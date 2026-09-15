@@ -9,6 +9,16 @@ const componentSource = readFileSync(componentPath, 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
 
+describe('AppSidebar video and scheduler icons', () => {
+  it('uses distinct camera and monitoring-screen icons without changing other navigation', () => {
+    expect(componentSource).toMatch(/path: '\/admin\/video-tasks'[^\n]+icon: VideoTaskIcon/)
+    expect(componentSource).toMatch(/path: '\/admin\/scheduler'[^\n]+icon: SchedulerMonitorIcon/)
+    expect(componentSource).toMatch(/path: '\/admin\/ops'[^\n]+icon: ChartIcon/)
+    expect(componentSource).toContain("d: 'M15 10l6-3v10l-6-3'")
+    expect(componentSource).toContain("d: 'M8 21h8m-4-4v4M6 10h3l2-4 2 8 2-4h3'")
+  })
+})
+
 describe('AppSidebar custom SVG styles', () => {
   it('does not override uploaded SVG fill or stroke colors', () => {
     expect(componentSource).toContain('.sidebar-svg-icon {')

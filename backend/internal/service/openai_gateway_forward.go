@@ -18,14 +18,7 @@ import (
 )
 
 // Forward forwards request to OpenAI API
-func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (result *OpenAIForwardResult, err error) {
-	clearOpenAIImagePreviews(c)
-	defer func() { persistCapturedImagePreviews(ctx, c, result) }()
-	clearUsageEstimateAttempt(c)
-	requestBytes := requestBodyBytesForUsageEstimate(body)
-	defer func() {
-		s.finalizeUsageEstimate(ctx, c, account, requestBytes, result, err)
-	}()
+func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
@@ -1202,9 +1195,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		// Handle normal response
 		var usage *OpenAIUsage
 		var firstTokenMs *int
-		var usagePresent bool
-		var clientDisconnect bool
-		var observedResponseBytes int
 		responseID := ""
 		imageCount := 0
 		searchCount := 0
@@ -1251,10 +1241,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				return nil, err
 			}
 			usage = streamResult.usage
-			usagePresent = streamResult.usagePresent
 			firstTokenMs = streamResult.firstTokenMs
-			clientDisconnect = streamResult.clientDisconnect
-			observedResponseBytes = streamResult.observedBytes
 			responseID = strings.TrimSpace(streamResult.responseID)
 			imageCount = streamResult.imageCount
 			imageOutputSizes = streamResult.imageOutputSizes
@@ -1278,8 +1265,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				return nil, err
 			}
 			usage = nonStreamResult.usage
-			usagePresent = nonStreamResult.usagePresent
-			observedResponseBytes = nonStreamResult.observedBytes
 			responseID = strings.TrimSpace(nonStreamResult.responseID)
 			imageCount = nonStreamResult.imageCount
 			imageOutputSizes = nonStreamResult.imageOutputSizes
@@ -1306,9 +1291,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			UpstreamHeaders:               resp.Header,
 			ResponseID:                    responseID,
 			Usage:                         *usage,
-			UsagePresent:                  usagePresent,
-			ClientDisconnect:              clientDisconnect,
-			ObservedResponseBytes:         observedResponseBytes,
 			Model:                         originalModel,
 			BillingModel:                  billingModel,
 			UpstreamModel:                 upstreamModel,

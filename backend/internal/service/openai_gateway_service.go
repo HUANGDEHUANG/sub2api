@@ -275,10 +275,6 @@ type OpenAIForwardResult struct {
 	Duration              time.Duration
 	FirstTokenMs          *int
 	ClientDisconnect      bool
-	UsagePresent          bool   // 上游是否实际返回了 usage 对象
-	UsageSource           string // upstream 或 estimated
-	RequestBytes          int    // 请求体字节数（仅用于缺失 usage 的估算）
-	ObservedResponseBytes int    // 已读取的上游响应字节数（仅用于缺失 usage 的估算）
 	ImageCount            int
 	ImageSize             string
 	ImageInputSize        string
@@ -290,6 +286,8 @@ type OpenAIForwardResult struct {
 	VideoResolution       string
 	// VideoDurationSeconds 是提交时请求的生成时长（xAI 按输出秒数计费），已归一化到 1-15 秒。
 	VideoDurationSeconds int
+	// VideoURL is the validated upstream completion URL, used only for admin preview capture.
+	VideoURL string
 	// WebSearchCalls 是 Codex alpha/search 网页搜索调用次数（每次成功请求为 1）。
 	// 上游不返回 usage 字段，>0 时走按次计费（分组单价 × 次数 × 倍率）。
 	WebSearchCalls int
@@ -432,6 +430,11 @@ type OpenAIGatewayService struct {
 	accountRepo           AccountRepository
 	usageLogRepo          UsageLogRepository
 	usageBillingRepo      UsageBillingRepository
+	videoTaskMu           sync.Mutex
+	videoTaskProcessor    *videoTaskProcessor
+	videoTaskCancel       context.CancelFunc
+	videoTaskDone         chan struct{}
+	videoTaskStopped      bool
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
 	cache                 GatewayCache
@@ -686,6 +689,7 @@ func (s *OpenAIGatewayService) billingDeps() *billingDeps {
 // CloseOpenAIWSPool 关闭 OpenAI WebSocket 连接池的后台 worker 和空闲连接。
 // 应在应用优雅关闭时调用。
 func (s *OpenAIGatewayService) CloseOpenAIWSPool() {
+	s.StopVideoTaskWorker()
 	if s != nil && s.openaiWSPool != nil {
 		s.openaiWSPool.Close()
 	}

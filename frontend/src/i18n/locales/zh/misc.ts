@@ -95,7 +95,6 @@ export default {
     unreadOnly: '仅显示未读',
     markRead: '标记已读',
     markAllRead: '全部已读',
-    noUnread: '暂无未读',
     viewAll: '查看全部公告',
     markedAsRead: '已标记为已读',
     allMarkedAsRead: '所有公告已标记为已读',

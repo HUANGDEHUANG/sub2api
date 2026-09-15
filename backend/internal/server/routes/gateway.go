@@ -48,8 +48,8 @@ func RegisterGatewayRoutes(
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
 		switch getGroupPlatform(c) {
 		case service.PlatformOpenAI, service.PlatformGrok,
-			service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek, service.PlatformMiniMax:
-			// 国产 OpenAI 兼容供应商与 openai/grok 一样经 OpenAI 网关转发。
+			service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek:
+			// 国产 OpenAI 兼容供应商（kimi/zhipu/deepseek）与 openai/grok 一样经 OpenAI 网关转发。
 			return true
 		default:
 			return false
@@ -57,7 +57,7 @@ func RegisterGatewayRoutes(
 	}
 	countTokensHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek, service.PlatformMiniMax:
+		case service.PlatformOpenAI, service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek:
 			h.OpenAIGateway.CountTokens(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokCountTokens(c)
@@ -98,7 +98,7 @@ func RegisterGatewayRoutes(
 		// Video status/content lookups below already allow Composite groups; keep
 		// task creation aligned so composite keys that route to Grok accounts can
 		// submit video generation jobs.
-		if platform := getGroupPlatform(c); platform == service.PlatformGrok || platform == service.PlatformComposite {
+		if platform := getGroupPlatform(c); platform == service.PlatformGrok || platform == service.PlatformComposite || platform == service.PlatformOpenAI {
 			h.OpenAIGateway.GrokVideoGeneration(c)
 			return
 		}
@@ -114,7 +114,7 @@ func RegisterGatewayRoutes(
 		// Video status requests do not carry a model, so composite groups cannot
 		// be resolved by compositeTargetPlatformMiddleware. Route them through
 		// the Grok handler and let scheduler/account selection enforce capacity.
-		if getGroupPlatform(c) == service.PlatformGrok || getGroupPlatform(c) == service.PlatformComposite {
+		if getGroupPlatform(c) == service.PlatformGrok || getGroupPlatform(c) == service.PlatformComposite || getGroupPlatform(c) == service.PlatformOpenAI {
 			h.OpenAIGateway.GrokVideoStatus(c)
 			return
 		}
@@ -130,7 +130,7 @@ func RegisterGatewayRoutes(
 		// Video content requests do not carry a model, so composite groups cannot
 		// be resolved by compositeTargetPlatformMiddleware. Route them through
 		// the Grok handler just like video status lookups.
-		if getGroupPlatform(c) == service.PlatformGrok || getGroupPlatform(c) == service.PlatformComposite {
+		if getGroupPlatform(c) == service.PlatformGrok || getGroupPlatform(c) == service.PlatformComposite || getGroupPlatform(c) == service.PlatformOpenAI {
 			h.OpenAIGateway.GrokVideoContent(c)
 			return
 		}

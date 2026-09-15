@@ -726,6 +726,9 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		ImageSizeSource:           l.ImageSizeSource,
 		ImageSizeBreakdown:        l.ImageSizeBreakdown,
 		MediaType:                 l.MediaType,
+		VideoCount:                l.VideoCount,
+		VideoResolution:           l.VideoResolution,
+		VideoDurationSeconds:      l.VideoDurationSeconds,
 		UserAgent:                 l.UserAgent,
 		IPAddress:                 l.IPAddress,
 		SessionID:                 l.SessionID,
@@ -779,6 +782,15 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 func UsageLogFromServiceAdminWithImagePreviews(l *service.UsageLog, previews []string) *AdminUsageLog {
 	row := UsageLogFromServiceAdmin(l)
 	if row != nil { row.ImagePreviews = previews }
+	return row
+}
+
+func UsageLogFromServiceAdminWithMediaPreviews(l *service.UsageLog, images, videos []string) *AdminUsageLog {
+	row := UsageLogFromServiceAdmin(l)
+	if row != nil {
+		row.ImagePreviews = images
+		row.VideoPreviews = videos
+	}
 	return row
 }
 

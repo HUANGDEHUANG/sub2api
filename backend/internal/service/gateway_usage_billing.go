@@ -1145,8 +1145,6 @@ func (s *GatewayService) buildRecordUsageLog(
 		AccountID:                account.ID,
 		RequestID:                requestID,
 		UpstreamRequestID:        usageUpstreamRequestIDPtr(account, result.UpstreamHeaders, false),
-		UsageSource:              optionalTrimmedStringPtr(result.UsageSource),
-		ClientDisconnected:       result.ClientDisconnect,
 		Model:                    result.Model,
 		RequestedModel:           requestedModel,
 		UpstreamModel:            optionalTrimmedStringPtr(result.UpstreamModel),

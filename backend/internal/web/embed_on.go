@@ -87,10 +87,6 @@ func (s *FrontendServer) InvalidateCache() {
 func (s *FrontendServer) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if strings.HasPrefix(path, siteLogoPrefix) {
-			s.serveSiteLogo(c)
-			return
-		}
 
 		// Skip API routes
 		if shouldBypassEmbeddedFrontend(path) {
@@ -206,7 +202,6 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 }
 
 func (s *FrontendServer) injectSettings(settingsJSON []byte) []byte {
-	settingsJSON = externalizeSiteLogo(settingsJSON)
 	// Create the script tag to inject with nonce placeholder
 	// The placeholder will be replaced with actual nonce at request time
 	script := []byte(`<script nonce="` + NonceHTMLPlaceholder + `">window.__APP_CONFIG__=` + string(settingsJSON) + `;</script>`)

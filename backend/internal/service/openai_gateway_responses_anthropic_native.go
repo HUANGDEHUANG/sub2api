@@ -223,13 +223,11 @@ func (s *OpenAIGatewayService) handleResponsesBufferedFromNativeAnthropic(
 		}
 
 		if event.Type == "message_start" && event.Message != nil {
-			setUsagePresent(c, true)
 			finalResp = event.Message
 			mergeAnthropicUsage(&usage, event.Message.Usage)
 		}
 		if event.Type == "message_delta" {
 			if event.Usage != nil {
-				setUsagePresent(c, true)
 				mergeAnthropicUsage(&usage, *event.Usage)
 			}
 			if event.Delta != nil && event.Delta.StopReason != "" && finalResp != nil {
@@ -393,11 +391,9 @@ func (s *OpenAIGatewayService) handleResponsesStreamingFromNativeAnthropic(
 		}
 
 		if event.Type == "message_delta" && event.Usage != nil {
-			setUsagePresent(c, true)
 			mergeAnthropicUsage(&usage, *event.Usage)
 		}
 		if event.Type == "message_start" && event.Message != nil {
-			setUsagePresent(c, true)
 			mergeAnthropicUsage(&usage, event.Message.Usage)
 		}
 

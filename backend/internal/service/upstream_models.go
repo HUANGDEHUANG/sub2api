@@ -21,7 +21,7 @@ import (
 const (
 	upstreamModelsBodyLimit             int64 = 8 << 20
 	modelsDevRegistryURL                      = "https://models.dev/api.json"
-	modelsDevRegistryTTL                      = 5 * time.Minute
+	modelsDevRegistryTTL                      = 6 * time.Hour
 	UpstreamModelMetadataExtraKey             = "upstream_model_metadata"
 	UpstreamModelMetadataIncompleteCode       = "upstream_model_metadata_incomplete"
 	UpstreamModelMetadataPartialCode          = "upstream_model_metadata_partial"
@@ -53,12 +53,8 @@ type UpstreamModelCatalog struct {
 }
 
 type UpstreamModelSyncWarning struct {
-	Code          string   `json:"code"`
-	Message       string   `json:"message"`
-	ModelIDs      []string `json:"model_ids,omitempty"`
-	CompleteCount int      `json:"complete_count"`
-	TotalCount    int      `json:"total_count"`
-	Reason        string   `json:"reason,omitempty"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 type modelsDevProvider struct {
@@ -245,7 +241,6 @@ func (s *AccountTestService) SyncUpstreamModelCatalog(ctx context.Context, accou
 	capabilityIDs := capabilitySyncModelIDs(enrichIDs)
 
 	source := "upstream"
-	metadataReason := "metadata_missing"
 	if upstreamCatalogNeedsRegistry(capabilityIDs, catalog.Metadata) {
 		if registryMetadata, registryErr := s.fetchModelsDevMetadata(ctx, account, enrichIDs); registryErr == nil {
 			for modelID, fallback := range registryMetadata {
@@ -257,7 +252,6 @@ func (s *AccountTestService) SyncUpstreamModelCatalog(ctx context.Context, accou
 				}
 			}
 		} else {
-			metadataReason = "registry_unavailable"
 			slog.Warn("upstream model capability metadata enrichment failed",
 				"account_id", upstreamModelSyncAccountID(account),
 				"platform", upstreamModelSyncPlatform(account),
@@ -267,6 +261,7 @@ func (s *AccountTestService) SyncUpstreamModelCatalog(ctx context.Context, accou
 	}
 
 	completeMetadata := completeUpstreamModelMetadataSubset(capabilityIDs, catalog.Metadata)
+	persistedCapabilities := false
 	if len(completeMetadata) > 0 && account != nil && account.ID > 0 && s.accountRepo != nil {
 		// Retain known metadata only for models still listed or explicitly mapped.
 		if previous := account.GetUpstreamModelMetadataSnapshot(); previous != nil {
@@ -302,28 +297,19 @@ func (s *AccountTestService) SyncUpstreamModelCatalog(ctx context.Context, accou
 			return nil, newUpstreamModelSyncInternalError("Failed to save upstream model metadata", err)
 		}
 		account.SetUpstreamModelMetadataSnapshot(snapshot)
+		persistedCapabilities = true
 	}
 
 	if upstreamCatalogNeedsRegistry(capabilityIDs, catalog.Metadata) {
-		missing := make([]string, 0)
-		for _, modelID := range capabilityIDs {
-			if !upstreamModelMetadataIsComplete(catalog.Metadata[modelID]) {
-				missing = append(missing, modelID)
-			}
-		}
-		// Preview has no account ID and intentionally does not persist. Classify
-		// the result by capabilities obtained, not by whether a DB write occurred.
-		if len(missing) < len(capabilityIDs) {
+		if persistedCapabilities {
 			catalog.Warnings = append(catalog.Warnings, UpstreamModelSyncWarning{
-				Code:     UpstreamModelMetadataPartialCode,
-				Message:  "Some model capabilities were obtained; remaining models are still incomplete.",
-				ModelIDs: missing, CompleteCount: len(capabilityIDs) - len(missing), TotalCount: len(capabilityIDs), Reason: metadataReason,
+				Code:    UpstreamModelMetadataPartialCode,
+				Message: "Some model capabilities were saved; remaining models are still incomplete.",
 			})
 		} else {
 			catalog.Warnings = append(catalog.Warnings, UpstreamModelSyncWarning{
-				Code:     UpstreamModelMetadataIncompleteCode,
-				Message:  "Model IDs were synced, but capability metadata is incomplete.",
-				ModelIDs: missing, CompleteCount: 0, TotalCount: len(capabilityIDs), Reason: metadataReason,
+				Code:    UpstreamModelMetadataIncompleteCode,
+				Message: "Model IDs were synced, but capability metadata is incomplete.",
 			})
 		}
 	}
@@ -508,9 +494,7 @@ func (s *AccountTestService) fetchModelsDevMetadata(
 		return nil, err
 	}
 	preferredProvider, providerMatched := matchModelsDevProvider(registry, upstreamModelRegistryBaseURL(account))
-	// Third-party relay hosts are not registry providers. Resolve known model
-	// families independently of the wire protocol, never arbitrary private IDs.
-	allowCrossProvider := account.IsOpenAICompatible() || account.IsAnthropic() || account.IsGemini() || account.Platform == PlatformAntigravity
+	allowCrossProvider := account.IsOpenAICompatible()
 	if !providerMatched && !allowCrossProvider {
 		return nil, fmt.Errorf("no model metadata provider matches account base URL")
 	}
@@ -701,10 +685,6 @@ func validMonthDaySuffix(value string) bool {
 func knownModelsDevModelFamily(modelID string) string {
 	modelID = trimModelRegistryDateSuffix(modelID)
 	switch {
-	case strings.HasPrefix(modelID, "claude-"):
-		return "anthropic"
-	case strings.HasPrefix(modelID, "gemini-"):
-		return "google"
 	case strings.HasPrefix(modelID, "gpt-") || strings.HasPrefix(modelID, "o1") ||
 		strings.HasPrefix(modelID, "o3") || strings.HasPrefix(modelID, "o4") || strings.Contains(modelID, "codex"):
 		return "openai"
@@ -732,10 +712,6 @@ func knownModelsDevModelFamily(modelID string) string {
 
 func modelsDevProviderIDsForFamily(family string) []string {
 	switch family {
-	case "anthropic":
-		return []string{"anthropic"}
-	case "google":
-		return []string{"google", "google-vertex"}
 	case "openai":
 		return []string{"openai"}
 	case "deepseek":

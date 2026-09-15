@@ -8,14 +8,14 @@ const appStoreMocks = vi.hoisted(() => ({
   showSuccess: vi.fn(),
   showError: vi.fn(),
 }))
-const previewApiMocks = vi.hoisted(() => ({ get: vi.fn() }))
-vi.mock('@/api/client', () => ({ default: previewApiMocks, apiClient: previewApiMocks }))
 
 vi.mock('@/utils/ipGeoLookup', () => ipGeoMocks)
 vi.mock('@/stores/app', () => ({ useAppStore: () => appStoreMocks }))
+const mediaAPI = vi.hoisted(() => ({ get: vi.fn() }))
+vi.mock('@/api/client', () => ({ apiClient: mediaAPI, default: mediaAPI }))
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import UsageTable from '../UsageTable.vue'
@@ -127,40 +127,46 @@ const baseImageRow = {
   image_size_breakdown: null,
 }
 
-describe('admin UsageTable preview lifecycle', () => {
-  it('releases old page blobs and aborts in-flight downloads when leaving a page', async () => {
-    const create = vi.fn(() => 'blob:preview-fixture')
-    const revoke = vi.fn()
-    const OriginalURL = URL
-    vi.stubGlobal('URL', class extends OriginalURL {
-      static createObjectURL = create
-      static revokeObjectURL = revoke
-    })
-    vi.stubGlobal('IntersectionObserver', undefined)
-    previewApiMocks.get.mockResolvedValueOnce({ data: new Blob(['fixture']) })
-    const wrapper = mount(UsageTable, {
-      props: { data: [{ ...baseImageRow, image_previews: ['/api/v1/admin/usage/1/images/0'] }], loading: false, columns: [] },
-      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } }
-    })
-    await flushPromises()
-    expect(create).toHaveBeenCalledTimes(1)
-    let finish: ((value: unknown) => void) | undefined
-    previewApiMocks.get.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
-    await wrapper.setProps({ data: [{ ...baseImageRow, request_id: 'next-page', image_previews: ['/api/v1/admin/usage/2/images/0'] }] })
-    await flushPromises()
-    expect(revoke).toHaveBeenCalledWith('blob:preview-fixture')
-    const options = previewApiMocks.get.mock.calls.at(-1)?.[1]
-    await wrapper.setProps({ data: [] })
-    expect(options.signal.aborted).toBe(true)
-    finish?.({ data: new Blob(['late fixture']) })
-    await flushPromises()
-    expect(create).toHaveBeenCalledTimes(1)
-    wrapper.unmount()
-    vi.unstubAllGlobals()
-  })
-})
-
 describe('admin UsageTable tooltip', () => {
+  const mountVideo = () => mount(UsageTable, {
+    props: {
+      data: [{ ...baseImageRow, billing_mode: 'token', image_count: 0, video_count: 1,
+        video_previews: ['/api/v1/admin/usage/12/videos/0'] }],
+      loading: false, columns: [],
+    },
+    global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+  })
+
+  it('loads videos only on click and refreshes playback authorization on reopen', async () => {
+    mediaAPI.get.mockReset().mockResolvedValue({ data: '/api/v1/admin/usage/12/videos/0/content' })
+    const wrapper = mountVideo()
+    expect(mediaAPI.get).not.toHaveBeenCalled()
+    await wrapper.get('[title="预览视频 1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('video').attributes('src')).toBe('/api/v1/admin/usage/12/videos/0/content')
+    expect(mediaAPI.get).toHaveBeenCalledWith('/admin/usage/12/videos/0', { responseType: 'text' })
+    await wrapper.get('[title="关闭预览"]').trigger('click')
+    await wrapper.get('[title="预览视频 1"]').trigger('click')
+    await flushPromises()
+    expect(mediaAPI.get).toHaveBeenCalledTimes(2)
+    await wrapper.get('video').trigger('error')
+    expect(wrapper.get('[role="alert"]').text()).toContain('视频暂时无法播放')
+    wrapper.unmount()
+  })
+
+  it('reports unavailable or unsafe video URLs without opening a player', async () => {
+    for (const result of ['https://upstream.example/private?key=secret', '']) {
+      mediaAPI.get.mockReset().mockResolvedValue({ data: result })
+      appStoreMocks.showError.mockClear()
+      const wrapper = mountVideo()
+      await wrapper.get('[title="预览视频 1"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('video').exists()).toBe(false)
+      expect(appStoreMocks.showError).toHaveBeenCalledOnce()
+      wrapper.unmount()
+    }
+  })
+
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,

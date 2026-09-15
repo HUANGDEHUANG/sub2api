@@ -275,7 +275,6 @@ export interface PublicSettings {
   channel_monitor_hide_throughput?: boolean
   /** When true, user monitor shows account quota/balance snapshots (default off). */
   channel_monitor_show_quota?: boolean
-  /** When true, user monitor hides the user ranking tab and /users payload. */
   channel_monitor_hide_user_ranking?: boolean
   available_channels_enabled: boolean
   model_plaza_enabled: boolean
@@ -1507,15 +1506,6 @@ export interface UpdateAccountRequest {
   confirm_mixed_channel_risk?: boolean
 }
 
-export type GrokMediaEligibilityMode = 'auto' | 'enabled' | 'disabled'
-
-export interface GrokMediaEligibilityState {
-  account_id: number
-  mode: GrokMediaEligibilityMode
-  eligible: boolean
-  reason: string
-}
-
 export interface CheckMixedChannelRequest {
   platform: AccountPlatform
   group_ids: number[]
@@ -1760,8 +1750,7 @@ export interface UsageLogAccountSummary {
 
 export interface AdminUsageLog extends UsageLog {
   image_previews?: string[]
-  usage_source?: 'upstream' | 'estimated' | null
-  client_disconnected?: boolean
+  video_previews?: string[]
   upstream_model?: string | null
   upstream_reasoning_effort?: string | null
   upstream_response_model?: string | null

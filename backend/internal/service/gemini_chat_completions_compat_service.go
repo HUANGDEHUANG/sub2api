@@ -125,8 +125,6 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 
 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		if err != nil {
-			if ctx.Err() != nil { return nil, ctx.Err() }
-			if errors.Is(err, context.Canceled) { return nil, err }
 			safeErr := sanitizeUpstreamErrorMessage(err.Error())
 			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 				ProxyID:            opsUpstreamProxyID(account),
@@ -140,7 +138,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 			})
 			if attempt < geminiMaxRetries {
 				logger.LegacyPrintf("service.gemini_chat_completions", "Gemini account %d: upstream request failed, retry %d/%d: %v", account.ID, attempt, geminiMaxRetries, err)
-				if err := waitGeminiBackoff(ctx, attempt); err != nil { return nil, err }
+				sleepGeminiBackoff(attempt)
 				continue
 			}
 			setOpsUpstreamError(c, 0, safeErr, "")
@@ -187,7 +185,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 					Message:            upstreamMsg,
 				})
 				logger.LegacyPrintf("service.gemini_chat_completions", "Gemini account %d: upstream status %d, retry %d/%d", account.ID, resp.StatusCode, attempt, geminiMaxRetries)
-				if err := waitGeminiBackoff(ctx, attempt); err != nil { return nil, err }
+				sleepGeminiBackoff(attempt)
 				continue
 			}
 			resp = &http.Response{

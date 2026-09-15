@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch, ref, useTemplateRef, nextTick } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useTemplateRef, nextTick } from 'vue'
 
 const props = withDefaults(defineProps<{
   content?: string
@@ -74,46 +74,33 @@ function onDocumentKeydown(event: KeyboardEvent) {
 }
 
 function onViewportChange() {
-  if (!show.value || positionFrame) return
-  positionFrame = requestAnimationFrame(() => {
-    positionFrame = 0
-    if (show.value) updatePosition()
-  })
+  if (!show.value) return
+  updatePosition()
 }
-
-let positionFrame = 0
 
 function updatePosition() {
   const el = triggerRef.value
   if (!el) return
   const rect = el.getBoundingClientRect()
   tooltipStyle.value = {
-    top: `${rect.top}px`,
-    left: `${rect.left + rect.width / 2}px`,
+    top: `${rect.top + window.scrollY}px`,
+    left: `${rect.left + rect.width / 2 + window.scrollX}px`,
   }
 }
 
-function attachListeners() {
+onMounted(() => {
   document.addEventListener('click', onDocumentClick, true)
   document.addEventListener('keydown', onDocumentKeydown)
   window.addEventListener('resize', onViewportChange)
-  window.addEventListener('scroll', onViewportChange, { capture: true, passive: true })
-}
+  window.addEventListener('scroll', onViewportChange, true)
+})
 
-function detachListeners() {
+onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick, true)
   document.removeEventListener('keydown', onDocumentKeydown)
   window.removeEventListener('resize', onViewportChange)
   window.removeEventListener('scroll', onViewportChange, true)
-  if (positionFrame) cancelAnimationFrame(positionFrame)
-  positionFrame = 0
-}
-
-watch(show, (visible) => {
-  if (visible) attachListeners()
-  else detachListeners()
-}, { flush: 'sync' })
-onBeforeUnmount(detachListeners)
+})
 </script>
 
 <template>

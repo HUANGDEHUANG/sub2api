@@ -37453,36 +37453,33 @@ func (m *PromoCodeUsageMutation) ResetEdge(name string) error {
 // ProxyMutation represents an operation that mutates the Proxy nodes in the graph.
 type ProxyMutation struct {
 	config
-	op                     Op
-	typ                    string
-	id                     *int64
-	created_at             *time.Time
-	updated_at             *time.Time
-	deleted_at             *time.Time
-	name                   *string
-	protocol               *string
-	host                   *string
-	port                   *int
-	addport                *int
-	username               *string
-	password               *string
-	status                 *string
-	expires_at             *time.Time
-	fallback_mode          *string
-	expiry_warn_days       *int
-	addexpiry_warn_days    *int
-	clearedFields          map[string]struct{}
-	accounts               map[int64]struct{}
-	removedaccounts        map[int64]struct{}
-	clearedaccounts        bool
-	primary_proxies        map[int64]struct{}
-	removedprimary_proxies map[int64]struct{}
-	clearedprimary_proxies bool
-	backup_proxy           *int64
-	clearedbackup_proxy    bool
-	done                   bool
-	oldValue               func(context.Context) (*Proxy, error)
-	predicates             []predicate.Proxy
+	op                  Op
+	typ                 string
+	id                  *int64
+	created_at          *time.Time
+	updated_at          *time.Time
+	deleted_at          *time.Time
+	name                *string
+	protocol            *string
+	host                *string
+	port                *int
+	addport             *int
+	username            *string
+	password            *string
+	status              *string
+	expires_at          *time.Time
+	fallback_mode       *string
+	expiry_warn_days    *int
+	addexpiry_warn_days *int
+	clearedFields       map[string]struct{}
+	accounts            map[int64]struct{}
+	removedaccounts     map[int64]struct{}
+	clearedaccounts     bool
+	backup_proxy        *int64
+	clearedbackup_proxy bool
+	done                bool
+	oldValue            func(context.Context) (*Proxy, error)
+	predicates          []predicate.Proxy
 }
 
 var _ ent.Mutation = (*ProxyMutation)(nil)
@@ -38246,60 +38243,6 @@ func (m *ProxyMutation) ResetAccounts() {
 	m.removedaccounts = nil
 }
 
-// AddPrimaryProxyIDs adds the "primary_proxies" edge to the Proxy entity by ids.
-func (m *ProxyMutation) AddPrimaryProxyIDs(ids ...int64) {
-	if m.primary_proxies == nil {
-		m.primary_proxies = make(map[int64]struct{})
-	}
-	for i := range ids {
-		m.primary_proxies[ids[i]] = struct{}{}
-	}
-}
-
-// ClearPrimaryProxies clears the "primary_proxies" edge to the Proxy entity.
-func (m *ProxyMutation) ClearPrimaryProxies() {
-	m.clearedprimary_proxies = true
-}
-
-// PrimaryProxiesCleared reports if the "primary_proxies" edge to the Proxy entity was cleared.
-func (m *ProxyMutation) PrimaryProxiesCleared() bool {
-	return m.clearedprimary_proxies
-}
-
-// RemovePrimaryProxyIDs removes the "primary_proxies" edge to the Proxy entity by IDs.
-func (m *ProxyMutation) RemovePrimaryProxyIDs(ids ...int64) {
-	if m.removedprimary_proxies == nil {
-		m.removedprimary_proxies = make(map[int64]struct{})
-	}
-	for i := range ids {
-		delete(m.primary_proxies, ids[i])
-		m.removedprimary_proxies[ids[i]] = struct{}{}
-	}
-}
-
-// RemovedPrimaryProxies returns the removed IDs of the "primary_proxies" edge to the Proxy entity.
-func (m *ProxyMutation) RemovedPrimaryProxiesIDs() (ids []int64) {
-	for id := range m.removedprimary_proxies {
-		ids = append(ids, id)
-	}
-	return
-}
-
-// PrimaryProxiesIDs returns the "primary_proxies" edge IDs in the mutation.
-func (m *ProxyMutation) PrimaryProxiesIDs() (ids []int64) {
-	for id := range m.primary_proxies {
-		ids = append(ids, id)
-	}
-	return
-}
-
-// ResetPrimaryProxies resets all changes to the "primary_proxies" edge.
-func (m *ProxyMutation) ResetPrimaryProxies() {
-	m.primary_proxies = nil
-	m.clearedprimary_proxies = false
-	m.removedprimary_proxies = nil
-}
-
 // ClearBackupProxy clears the "backup_proxy" edge to the Proxy entity.
 func (m *ProxyMutation) ClearBackupProxy() {
 	m.clearedbackup_proxy = true
@@ -38741,12 +38684,9 @@ func (m *ProxyMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ProxyMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 2)
 	if m.accounts != nil {
 		edges = append(edges, proxy.EdgeAccounts)
-	}
-	if m.primary_proxies != nil {
-		edges = append(edges, proxy.EdgePrimaryProxies)
 	}
 	if m.backup_proxy != nil {
 		edges = append(edges, proxy.EdgeBackupProxy)
@@ -38764,12 +38704,6 @@ func (m *ProxyMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
-	case proxy.EdgePrimaryProxies:
-		ids := make([]ent.Value, 0, len(m.primary_proxies))
-		for id := range m.primary_proxies {
-			ids = append(ids, id)
-		}
-		return ids
 	case proxy.EdgeBackupProxy:
 		if id := m.backup_proxy; id != nil {
 			return []ent.Value{*id}
@@ -38780,12 +38714,9 @@ func (m *ProxyMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ProxyMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 2)
 	if m.removedaccounts != nil {
 		edges = append(edges, proxy.EdgeAccounts)
-	}
-	if m.removedprimary_proxies != nil {
-		edges = append(edges, proxy.EdgePrimaryProxies)
 	}
 	return edges
 }
@@ -38800,24 +38731,15 @@ func (m *ProxyMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
-	case proxy.EdgePrimaryProxies:
-		ids := make([]ent.Value, 0, len(m.removedprimary_proxies))
-		for id := range m.removedprimary_proxies {
-			ids = append(ids, id)
-		}
-		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ProxyMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 2)
 	if m.clearedaccounts {
 		edges = append(edges, proxy.EdgeAccounts)
-	}
-	if m.clearedprimary_proxies {
-		edges = append(edges, proxy.EdgePrimaryProxies)
 	}
 	if m.clearedbackup_proxy {
 		edges = append(edges, proxy.EdgeBackupProxy)
@@ -38831,8 +38753,6 @@ func (m *ProxyMutation) EdgeCleared(name string) bool {
 	switch name {
 	case proxy.EdgeAccounts:
 		return m.clearedaccounts
-	case proxy.EdgePrimaryProxies:
-		return m.clearedprimary_proxies
 	case proxy.EdgeBackupProxy:
 		return m.clearedbackup_proxy
 	}
@@ -38856,9 +38776,6 @@ func (m *ProxyMutation) ResetEdge(name string) error {
 	switch name {
 	case proxy.EdgeAccounts:
 		m.ResetAccounts()
-		return nil
-	case proxy.EdgePrimaryProxies:
-		m.ResetPrimaryProxies()
 		return nil
 	case proxy.EdgeBackupProxy:
 		m.ResetBackupProxy()
@@ -44622,8 +44539,6 @@ type UsageLogMutation struct {
 	requested_model              *string
 	upstream_model               *string
 	upstream_response_model      *string
-	usage_source                 *string
-	client_disconnected          *bool
 	upstream_model_mismatch      *bool
 	channel_id                   *int64
 	addchannel_id                *int64
@@ -45121,78 +45036,6 @@ func (m *UsageLogMutation) UpstreamResponseModelCleared() bool {
 func (m *UsageLogMutation) ResetUpstreamResponseModel() {
 	m.upstream_response_model = nil
 	delete(m.clearedFields, usagelog.FieldUpstreamResponseModel)
-}
-
-// SetUsageSource sets the "usage_source" field.
-func (m *UsageLogMutation) SetUsageSource(s string) {
-	m.usage_source = &s
-}
-
-// UsageSource returns the value of the "usage_source" field in the mutation.
-func (m *UsageLogMutation) UsageSource() (r string, exists bool) {
-	v := m.usage_source
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldUsageSource returns the old "usage_source" field's value of the UsageLog entity.
-// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UsageLogMutation) OldUsageSource(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldUsageSource is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldUsageSource requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldUsageSource: %w", err)
-	}
-	return oldValue.UsageSource, nil
-}
-
-// ResetUsageSource resets all changes to the "usage_source" field.
-func (m *UsageLogMutation) ResetUsageSource() {
-	m.usage_source = nil
-}
-
-// SetClientDisconnected sets the "client_disconnected" field.
-func (m *UsageLogMutation) SetClientDisconnected(b bool) {
-	m.client_disconnected = &b
-}
-
-// ClientDisconnected returns the value of the "client_disconnected" field in the mutation.
-func (m *UsageLogMutation) ClientDisconnected() (r bool, exists bool) {
-	v := m.client_disconnected
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldClientDisconnected returns the old "client_disconnected" field's value of the UsageLog entity.
-// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UsageLogMutation) OldClientDisconnected(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldClientDisconnected is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldClientDisconnected requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldClientDisconnected: %w", err)
-	}
-	return oldValue.ClientDisconnected, nil
-}
-
-// ResetClientDisconnected resets all changes to the "client_disconnected" field.
-func (m *UsageLogMutation) ResetClientDisconnected() {
-	m.client_disconnected = nil
 }
 
 // SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
@@ -47440,7 +47283,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 49)
+	fields := make([]string, 0, 47)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47464,12 +47307,6 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.upstream_response_model != nil {
 		fields = append(fields, usagelog.FieldUpstreamResponseModel)
-	}
-	if m.usage_source != nil {
-		fields = append(fields, usagelog.FieldUsageSource)
-	}
-	if m.client_disconnected != nil {
-		fields = append(fields, usagelog.FieldClientDisconnected)
 	}
 	if m.upstream_model_mismatch != nil {
 		fields = append(fields, usagelog.FieldUpstreamModelMismatch)
@@ -47612,10 +47449,6 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.UpstreamModel()
 	case usagelog.FieldUpstreamResponseModel:
 		return m.UpstreamResponseModel()
-	case usagelog.FieldUsageSource:
-		return m.UsageSource()
-	case usagelog.FieldClientDisconnected:
-		return m.ClientDisconnected()
 	case usagelog.FieldUpstreamModelMismatch:
 		return m.UpstreamModelMismatch()
 	case usagelog.FieldChannelID:
@@ -47719,10 +47552,6 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldUpstreamModel(ctx)
 	case usagelog.FieldUpstreamResponseModel:
 		return m.OldUpstreamResponseModel(ctx)
-	case usagelog.FieldUsageSource:
-		return m.OldUsageSource(ctx)
-	case usagelog.FieldClientDisconnected:
-		return m.OldClientDisconnected(ctx)
 	case usagelog.FieldUpstreamModelMismatch:
 		return m.OldUpstreamModelMismatch(ctx)
 	case usagelog.FieldChannelID:
@@ -47865,20 +47694,6 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpstreamResponseModel(v)
-		return nil
-	case usagelog.FieldUsageSource:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetUsageSource(v)
-		return nil
-	case usagelog.FieldClientDisconnected:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetClientDisconnected(v)
 		return nil
 	case usagelog.FieldUpstreamModelMismatch:
 		v, ok := value.(bool)
@@ -48615,12 +48430,6 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamResponseModel:
 		m.ResetUpstreamResponseModel()
-		return nil
-	case usagelog.FieldUsageSource:
-		m.ResetUsageSource()
-		return nil
-	case usagelog.FieldClientDisconnected:
-		m.ResetClientDisconnected()
 		return nil
 	case usagelog.FieldUpstreamModelMismatch:
 		m.ResetUpstreamModelMismatch()

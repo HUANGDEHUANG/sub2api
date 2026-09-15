@@ -373,6 +373,11 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			}
 		}
 		if result != nil {
+			if videoURL, ok := c.Get("openai_video_preview_url"); ok {
+				if value, ok := videoURL.(string); ok {
+					service.SaveGrokVideoPreviewAsync(value, service.ResolveUsageRecordID(c.Request.Context(), result.RequestID), apiKey.ID)
+				}
+			}
 			// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
 			if account.Type == service.AccountTypeOAuth && !account.IsShadow() {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.ID, result.ResponseHeaders)

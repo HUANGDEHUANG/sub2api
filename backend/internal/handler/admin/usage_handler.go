@@ -26,6 +26,7 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	adminService   service.AdminService
 	cleanupService *service.UsageCleanupService
+	videoGateway   *service.OpenAIGatewayService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -34,12 +35,14 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
+	videoGateway *service.OpenAIGatewayService,
 ) *UsageHandler {
 	return &UsageHandler{
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		adminService:   adminService,
 		cleanupService: cleanupService,
+		videoGateway:   videoGateway,
 	}
 }
 
@@ -216,7 +219,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	out := make([]dto.AdminUsageLog, 0, len(records))
 	for i := range records {
-		row := dto.UsageLogFromServiceAdminWithImagePreviews(&records[i], service.ListOpenAIImagePreviewURLs(records[i].RequestID, records[i].APIKeyID, records[i].ID, records[i].ImageCount))
+		row := dto.UsageLogFromServiceAdminWithMediaPreviews(&records[i],
+			service.ListOpenAIImagePreviewURLs(records[i].RequestID, records[i].APIKeyID, records[i].ID, records[i].ImageCount),
+			service.ListAdminVideoPreviewURLs(&records[i], time.Now()),
+		)
 		out = append(out, *row)
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)

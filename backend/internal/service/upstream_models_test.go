@@ -766,12 +766,8 @@ func TestSyncUpstreamModelCatalogDoesNotOverwriteSnapshotWhenRegistryFails(t *te
 	require.Equal(t, []string{"x-preview-f-free"}, catalog.Models)
 	require.Empty(t, catalog.Metadata)
 	require.Equal(t, []UpstreamModelSyncWarning{{
-		Code:          UpstreamModelMetadataIncompleteCode,
-		Message:       "Model IDs were synced, but capability metadata is incomplete.",
-		ModelIDs:      []string{"x-preview-f-free"},
-		CompleteCount: 0,
-		TotalCount:    1,
-		Reason:        "registry_unavailable",
+		Code:    UpstreamModelMetadataIncompleteCode,
+		Message: "Model IDs were synced, but capability metadata is incomplete.",
 	}}, catalog.Warnings)
 	require.Nil(t, repo.updates, "a failed metadata enrichment must not erase a previously saved snapshot")
 }
@@ -1232,8 +1228,8 @@ func TestLookupModelsDevModelForAccountUsesKnownModelFamilies(t *testing.T) {
 		return modelsDevModel{
 			ID: id, Reasoning: boolPtr(true),
 			ReasoningOptions: []modelsDevReasoningOption{{Type: "effort", Values: []any{"low", "high"}}},
-			Modalities:       modelsDevModalities{Input: []string{"text"}},
-			Limit:            modelsDevLimit{Context: 128000, Output: 16384},
+			Modalities: modelsDevModalities{Input: []string{"text"}},
+			Limit:      modelsDevLimit{Context: 128000, Output: 16384},
 		}
 	}
 	registry := map[string]modelsDevProvider{

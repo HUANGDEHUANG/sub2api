@@ -640,12 +640,8 @@ type ForwardResult struct {
 	UpstreamResponseServiceTier string
 	Stream                      bool
 	Duration                    time.Duration
-	FirstTokenMs                *int   // 首字时间（流式请求）
-	ClientDisconnect            bool   // 客户端是否在流式传输过程中断开
-	UsagePresent                bool   // 上游是否实际返回了 usage 对象
-	UsageSource                 string // upstream 或 estimated
-	RequestBytes                int    // 请求体字节数（仅用于缺失 usage 的估算）
-	ObservedResponseBytes       int    // 已读取的上游响应字节数（仅用于缺失 usage 的估算）
+	FirstTokenMs                *int // 首字时间（流式请求）
+	ClientDisconnect            bool // 客户端是否在流式传输过程中断开
 	ReasoningEffort             *string
 	// RequestedReasoningEffort is the client-requested effort before mapping.
 	RequestedReasoningEffort *string

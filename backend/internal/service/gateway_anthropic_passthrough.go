@@ -872,8 +872,6 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 	}
 
 	usage := parseClaudeUsageFromResponseBody(body)
-	setObservedResponseBytes(c, responseBodyBytesForUsageEstimate(body))
-	setUsagePresent(c, gjson.GetBytes(body, "usage").Exists())
 	if IsForceCacheBilling(ctx) && usage.InputTokens > 0 {
 		body, err = classifyAnthropicResponseInputAsCacheRead(body, usage)
 		if err != nil {

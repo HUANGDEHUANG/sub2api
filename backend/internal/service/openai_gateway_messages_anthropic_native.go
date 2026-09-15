@@ -236,8 +236,6 @@ func (s *OpenAIGatewayService) handleNativeAnthropicBufferedResponse(
 	}
 
 	usage := parseClaudeUsageFromResponseBody(body)
-	setObservedResponseBytes(c, responseBodyBytesForUsageEstimate(body))
-	setUsagePresent(c, claudeUsagePresentInJSON(body))
 	if IsForceCacheBilling(ctx) && usage.InputTokens > 0 {
 		body, err = classifyAnthropicResponseInputAsCacheRead(body, usage)
 		if err != nil {
@@ -435,8 +433,6 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 			line := ev.line
 			if data, ok := extractAnthropicSSEDataLine(line); ok {
 				trimmed := strings.TrimSpace(data)
-				setObservedResponseBytes(c, usageObservedResponseBytes(c)+responseBodyBytesForUsageEstimate([]byte(trimmed)))
-				setUsagePresent(c, claudeUsagePresentInJSON([]byte(trimmed)))
 				observer.ObserveAnthropic([]byte(trimmed))
 				if anthropicStreamEventIsTerminal("", trimmed) {
 					sawTerminalEvent = true

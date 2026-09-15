@@ -109,7 +109,7 @@ func TestOpenAIAccountTransient_SelectionProbeReleaseAndWait(t *testing.T) {
 	selection.ReleaseFunc()
 	require.Equal(t, 1, releases)
 	svc.ReportOpenAIAccountScheduleResult(&account, "gpt-5.1", true, nil)
-	require.False(t, state.hasEntry(42, time.Now()), "the configured account circuit recovers after one admitted successful probe")
+	require.True(t, state.hasEntry(42, time.Now()), "one success only begins recovery")
 	selection, ok = svc.finalizeOpenAIAccountTransientSelection(&AccountSelectionResult{Account: &account, Acquired: true})
 	require.True(t, ok)
 	selection.CompleteTransient(true)

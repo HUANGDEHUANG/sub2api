@@ -2217,7 +2217,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				responseID = extractOpenAIResponseIDFromJSONBytes(dataBytes)
 			}
 			imageCounter.AddSSEData(dataBytes)
-			CaptureOpenAIImagePreviewResponse(c, dataBytes)
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
 				dataBytes,
 				eventType,
@@ -2415,7 +2414,6 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 		return nil, fmt.Errorf("restore OpenAI Responses client tools: %w", err)
 	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
-		CaptureOpenAIImagePreviewResponse(c, body)
 		c.Data(resp.StatusCode, contentType, body)
 	}
 	return &openaiNonStreamingResultPassthrough{
@@ -2498,7 +2496,6 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		}
 	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
-		CaptureOpenAIImagePreviewResponse(c, body)
 		c.Data(resp.StatusCode, contentType, body)
 	}
 

@@ -24,6 +24,7 @@ func RegisterAdminRoutes(
 	v1.GET("/plugin-ui/:token/*path", h.Admin.Plugin.ServeUIAsset)
 
 	admin := v1.Group("/admin")
+	admin.Use(middleware.AdminVideoPreviewCookieAuth())
 	admin.Use(gin.HandlerFunc(adminAuth))
 	// 面板全局按用户限流（默认管理员豁免，可在系统设置中关闭豁免）
 	admin.Use(panelRateLimiter.Global())
@@ -373,8 +374,6 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/sync/crs", h.Admin.Account.SyncFromCRS)
 		accounts.POST("/sync/crs/preview", h.Admin.Account.PreviewFromCRS)
 		accounts.PUT("/:id", h.Admin.Account.Update)
-		accounts.GET("/:id/grok-media-eligibility", h.Admin.Account.GetGrokMediaEligibility)
-		accounts.PUT("/:id/grok-media-eligibility", h.Admin.Account.UpdateGrokMediaEligibility)
 		accounts.PUT("/:id/upstream-billing-probe", h.Admin.Account.SetUpstreamBillingProbeEnabled)
 		accounts.POST("/:id/upstream-billing-probe", h.Admin.Account.ProbeUpstreamBilling)
 		accounts.GET("/:id/ollama-cloud-usage", h.Admin.Account.GetOllamaCloudUsage)
@@ -691,10 +690,13 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 }
 
 func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	admin.GET("/video-tasks", h.Admin.Usage.VideoTasks)
 	usage := admin.Group("/usage")
 	{
 		usage.GET("", h.Admin.Usage.List)
 		usage.GET("/:id/images/:index", h.Admin.Usage.Image)
+		usage.GET("/:id/videos/:index", h.Admin.Usage.Video)
+		usage.GET("/:id/videos/:index/content", h.Admin.Usage.VideoContent)
 		usage.GET("/stats", h.Admin.Usage.Stats)
 		usage.GET("/search-users", h.Admin.Usage.SearchUsers)
 		usage.GET("/search-api-keys", h.Admin.Usage.SearchAPIKeys)
