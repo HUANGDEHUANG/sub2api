@@ -57,8 +57,8 @@
         <!-- Language Switcher -->
         <LocaleSwitcher />
 
-        <!-- Subscription Progress (for users with active subscriptions) -->
-        <SubscriptionProgressMini v-if="user" />
+        <!-- Subscription Progress (for users with active subscriptions; not mounted at all when the feature is off) -->
+        <SubscriptionProgressMini v-if="user && subscriptionFeatureEnabled" />
 
         <!-- Balance Display -->
         <div
@@ -293,6 +293,7 @@ import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
 const router = useRouter()
 const route = useRoute()
@@ -313,6 +314,11 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
+const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
+const purchaseLabel = computed(() => {
+  const mode = resolveSiteBillingMode(appStore.cachedPublicSettings)
+  return t(mode === 'recharge_only' ? 'nav.recharge' : mode === 'subscription_only' ? 'nav.subscribe' : 'nav.buySubscription')
+})
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const availableBalance = computed(() => Number(user.value?.balance || 0))
 const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))
@@ -354,7 +360,7 @@ const searchResults = computed(() => {
     { path: '/available-channels', label: '可用渠道' },
     { path: '/monitor', label: '渠道状态' },
     { path: '/subscriptions', label: '我的订阅' },
-    { path: '/purchase', label: '充值/订阅' },
+    { path: '/purchase', label: purchaseLabel.value },
     { path: '/orders', label: '我的订单' },
     { path: '/redeem', label: '兑换码' },
     { path: '/profile', label: '个人资料' },
@@ -368,7 +374,8 @@ const searchResults = computed(() => {
     { path: '/admin/usage', label: '管理端使用记录' },
     { path: '/admin/settings', label: '系统设置' },
   ]
-  const pages = authStore.isAdmin ? [...adminPages, ...userPages] : userPages
+  const visibleUserPages = userPages.filter(page => page.path !== '/subscriptions' || subscriptionFeatureEnabled.value)
+  const pages = authStore.isAdmin ? [...adminPages, ...visibleUserPages] : visibleUserPages
   const query = searchQuery.value.trim().toLowerCase()
   return query
     ? pages.filter((page) => `${page.label} ${page.path}`.toLowerCase().includes(query))

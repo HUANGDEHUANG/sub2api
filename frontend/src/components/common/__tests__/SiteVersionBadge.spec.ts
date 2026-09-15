@@ -15,6 +15,16 @@ beforeEach(() => { auth.isAdmin = true; checkUpdates.mockReset(); checkUpdates.m
 afterEach(() => { wrapper?.unmount(); document.body.innerHTML = ''; vi.useRealTimers() })
 
 describe('SiteVersionBadge', () => {
+  it('keeps update notices but explains custom-image-only upgrades', async () => {
+    checkUpdates.mockResolvedValue({ ...latest, build_type: 'custom' })
+    wrapper = mount(SiteVersionBadge, { attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('有新版本可用')
+    expect(document.body.textContent).toContain('已验证的定制镜像')
+    expect(document.body.textContent).not.toContain('立即更新')
+  })
   it('shows current version, update dot, safe release link and no update mutation', async () => {
     wrapper = mount(SiteVersionBadge, { attachTo: document.body })
     await flushPromises()

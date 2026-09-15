@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -42,6 +43,7 @@ type createChannelRequest struct {
 }
 
 type updateChannelRequest struct {
+	ExpectedUpdatedAt          *time.Time                        `json:"expected_updated_at"`
 	Name                       string                            `json:"name" binding:"omitempty,max=100"`
 	Description                *string                           `json:"description"`
 	Status                     string                            `json:"status" binding:"omitempty,oneof=active disabled"`
@@ -202,7 +204,7 @@ func channelToResponse(ch *service.Channel) *channelResponse {
 		GroupIDs:       ch.GroupIDs,
 		ModelMapping:   ch.ModelMapping,
 		CreatedAt:      ch.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:      ch.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:      ch.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	resp.BillingModelSource = ch.BillingModelSource
 	if resp.GroupIDs == nil {
@@ -527,7 +529,13 @@ func (h *ChannelHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Old clients must reload before replacing pricing with an unversioned snapshot.
+	if req.ModelPricing != nil && req.ExpectedUpdatedAt == nil {
+		response.ErrorFrom(c, service.ErrChannelModified)
+		return
+	}
 	input := &service.UpdateChannelInput{
+		ExpectedUpdatedAt:          req.ExpectedUpdatedAt,
 		Name:                       req.Name,
 		Description:                req.Description,
 		Status:                     req.Status,
@@ -644,6 +652,7 @@ var platformToLiteLLMProvider = map[string]string{
 	service.PlatformZhipu:       "zhipu",
 	service.PlatformDeepseek:    "deepseek",
 	service.PlatformMiniMax:     "minimax",
+	service.PlatformOpenCodeGo:  "opencode-go",
 }
 
 // SyncPricingModels 返回 LiteLLM 定价目录中指定平台的最新模型列表

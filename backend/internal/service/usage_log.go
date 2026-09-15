@@ -102,10 +102,6 @@ func ApplyLegacyRequestFields(requestType RequestType, fallbackStream bool, fall
 }
 
 type UsageLog struct {
-	// UsageSource and ClientDisconnected are optional runtime metadata used by
-	// the admin usage view; zero values preserve compatibility with old rows.
-	UsageSource        *string
-	ClientDisconnected bool
 	ID        int64
 	UserID    int64
 	APIKeyID  int64

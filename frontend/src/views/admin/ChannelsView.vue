@@ -763,9 +763,9 @@ const form = reactive({
 let abortController: AbortController | null = null
 
 // ── Platform config ──
-const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax']
+const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go']
 // Composite pricing/mapping may target every concrete schedulable provider.
-const compositePlatforms: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax']
+const compositePlatforms: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go']
 
 // ── Helpers ──
 function formatDate(value: string): string {
@@ -1371,6 +1371,12 @@ async function openCreateDialog() {
 }
 
 async function openEditDialog(channel: Channel) {
+  try {
+    channel = await adminAPI.channels.getById(channel.id)
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, '无法读取最新渠道配置，请刷新页面后重试'))
+    return
+  }
   editingChannel.value = channel
   form.name = channel.name
   form.description = channel.description || ''
@@ -1585,6 +1591,7 @@ async function handleSubmit() {
   try {
     if (editingChannel.value) {
       const req: UpdateChannelRequest = {
+        expected_updated_at: editingChannel.value.updated_at,
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         status: form.status,

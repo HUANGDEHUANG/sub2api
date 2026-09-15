@@ -27,6 +27,7 @@
           <p v-else-if="loading" class="version-status" role="status">正在检查更新…</p>
           <p v-else-if="!error && info" class="version-status">已是最新版本</p>
           <p v-if="error" class="version-error" role="status">{{ error }}</p>
+          <p v-if="info?.build_type === 'custom'" class="version-status">BUAGA 定制版：升级和回滚须使用已验证的定制镜像。</p>
           <a v-if="releaseURL" class="version-release" :href="releaseURL" target="_blank" rel="noopener noreferrer">
             查看更新日志 <Icon name="externalLink" size="sm" />
           </a>
