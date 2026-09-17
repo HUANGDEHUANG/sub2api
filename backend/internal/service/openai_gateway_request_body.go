@@ -476,6 +476,9 @@ func openAIRequestBodyHasTools(body []byte) bool {
 // ids, and opaque extensions). Callers scope this normalization to OpenAI
 // destinations; compatible providers may still consume their own content.
 func normalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, error) {
+	if isDeepSeekReasoningReplayModel(gjson.GetBytes(body, "model").String()) {
+		return body, false, nil
+	}
 	input := parseRawJSONView(body).Get("input")
 	if !input.IsArray() {
 		return body, false, nil
@@ -529,6 +532,9 @@ func normalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, 
 }
 
 func normalizeOpenAIAPIKeyStoreFalseReasoningReplay(body []byte, knownStoreFalse bool) ([]byte, bool, error) {
+	if isDeepSeekReasoningReplayModel(gjson.GetBytes(body, "model").String()) {
+		return body, false, nil
+	}
 	if !knownStoreFalse && gjson.GetBytes(body, "store").Type != gjson.False {
 		return body, false, nil
 	}
