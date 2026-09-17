@@ -457,11 +457,15 @@ func openAIVideoCompletion(body []byte, taskID string) *OpenAIForwardResult {
 			break
 		}
 	}
+	resolution := openAIVideoSizeResolution(gjson.GetBytes(body, "size").String())
+	if resolution == "" {
+		resolution, _ = LookupVideoBillingResolution(gjson.GetBytes(body, "resolution").String())
+	}
 	return &OpenAIForwardResult{
 		ResponseID:    firstNonEmpty(extractGrokMediaVideoRequestID(body), taskID),
 		UpstreamModel: strings.TrimSpace(gjson.GetBytes(body, "model").String()),
 		VideoCount:    1, VideoDurationSeconds: seconds,
-		VideoResolution: openAIVideoSizeResolution(gjson.GetBytes(body, "size").String()),
+		VideoResolution: resolution,
 	}
 }
 
