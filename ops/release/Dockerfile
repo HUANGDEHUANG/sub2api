@@ -14,7 +14,7 @@ COPY backend/ ./
 COPY --from=frontend /src/backend/internal/web/dist/ ./internal/web/dist/
 ARG VERSION
 ARG COMMIT
-RUN CGO_ENABLED=0 go build -tags embed -trimpath -ldflags "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildType=custom" -o /out/sub2api ./cmd/server
+RUN CGO_ENABLED=0 GOMAXPROCS=2 go build -p 2 -tags embed -trimpath -ldflags "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildType=custom" -o /out/sub2api ./cmd/server
 
 FROM ${BUAGA_BASE_IMAGE}
 USER root

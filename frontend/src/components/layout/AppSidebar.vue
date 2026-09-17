@@ -121,6 +121,7 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <span v-if="item.recommended && !sidebarCollapsed" class="ml-auto shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-200">推荐</span>
           </router-link>
         </div>
       </template>
@@ -142,6 +143,7 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <span v-if="item.recommended && !sidebarCollapsed" class="ml-auto shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-200">推荐</span>
           </router-link>
         </div>
       </template>
@@ -204,6 +206,7 @@ interface NavItem {
   label: string
   icon: unknown
   iconSvg?: string
+  recommended?: boolean
   hideInSimpleMode?: boolean
   children?: NavItem[]
   /**
@@ -749,9 +752,13 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const isAccessDocsItem = (item: (typeof customMenuItemsForUser.value)[number]) =>
     item.id === accessDocsMenuItemId || item.label === '接入文档' || item.url === 'md:buaga-access'
   const accessDocsItem = customMenuItemsForUser.value.find(isAccessDocsItem)
-  const remainingCustomMenuItems = customMenuItemsForUser.value.filter((item) => !isAccessDocsItem(item))
+  const imageWorkbench = customMenuItemsForUser.value.find((item) => item.id === '97370c95df45cba1')
+  const remainingCustomMenuItems = customMenuItemsForUser.value.filter((item) => !isAccessDocsItem(item) && item.id !== imageWorkbench?.id)
   if (withDashboard) {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
+  }
+  if (imageWorkbench) {
+    items.push({ path: `/custom/${imageWorkbench.id}`, label: imageWorkbench.label, icon: BatchImageIcon, recommended: true })
   }
   items.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
   if (accessDocsItem) {

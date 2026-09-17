@@ -5,7 +5,25 @@
 每条同时检查文件和内容。自动登记的源码锚点用于防止文件内部回退；行为仍须由测试和页面验收确认。
 改动涉及锚点时，必须审查功能是否保留后再更新对应断言，禁止为了通过守卫而批量清空。
 
-已知未包含：生图推荐卡及推荐徽章在迁移前的 R3 已丢失，记录为后续独立恢复，不假报已在线。
+迁移前 R3 已丢失的生图推荐卡及推荐徽章在本次功能分支中恢复，以下新增断言与交互测试保护这些入口。
+
+### C-381 用户仪表盘生图推荐入口
+- 文件：frontend/src/views/user/DashboardView.vue
+- 断言："v-if=\"imageWorkbench\""
+- 断言："AI 生图工作台"
+- 断言："item.visibility === 'user' && item.id === '97370c95df45cba1'"
+
+### C-382 用户和管理员个人菜单生图推荐徽章
+- 文件：frontend/src/components/layout/AppSidebar.vue
+- 断言："item.recommended && !sidebarCollapsed"
+- 断言："item.id !== imageWorkbench?.id"
+- 断言："icon: BatchImageIcon, recommended: true"
+
+### C-383 生图入口交互回归测试
+- 文件：frontend/src/components/layout/__tests__/ImageWorkbenchRecommendation.spec.ts
+- 断言："for (const isAdmin of [false, true])"
+- 断言："expect(workbenchLinks).toHaveLength(1)"
+- 断言："expect(router.currentRoute.value.path).toBe(target)"
 
 
 ### C-001 backend/cmd/server/VERSION

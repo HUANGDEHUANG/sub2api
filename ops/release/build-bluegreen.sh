@@ -20,7 +20,7 @@ expected_image="$(python3 -c 'import json; print(json.load(open("/home/serveradm
 base_tag="sub2api:verified-base-${actual_image:7:16}"
 docker tag "$actual_image" "$base_tag"
 [[ "$(docker inspect --type=image --format '{{.Id}}' "$base_tag")" == "$expected_image" ]] || exit 1
-docker build --pull=false --label "buaga.source.commit=$commit" --label 'buaga.custom=true' \
+DOCKER_BUILDKIT=0 docker build --memory=6g --cpu-period=100000 --cpu-quota=200000 --pull=false --label "buaga.source.commit=$commit" --label 'buaga.custom=true' \
   --build-arg "BUAGA_BASE_IMAGE=$base_tag" --build-arg "VERSION=$version" --build-arg "COMMIT=$commit" \
   -f "$script_dir/Dockerfile" -t "$image_tag" "$stage/source"
 echo 'Candidate image built. Pilot tests, current-image comparison, custom asset checks and graceful traffic switching are still required.'
