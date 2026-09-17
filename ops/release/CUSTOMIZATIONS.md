@@ -7,6 +7,32 @@
 
 迁移前 R3 已丢失的生图推荐卡及推荐徽章在本次功能分支中恢复，以下新增断言与交互测试保护这些入口。
 
+### C-386 Chat 流内错误与换号回归
+- 文件：backend/internal/handler/ops_chat_stream_error_test.go
+- 断言："TestOpsChatStreamFailureIsNotRecovered"
+- 断言："TestOpsChatStreamErrorEnvelope"
+
+### C-387 Chat 开始框架暂存及心跳安全换号
+- 文件：backend/internal/service/openai_chat_preamble_failover_test.go
+- 断言："TestChatPreambleFailover"
+- 断言："TestChatPreambleHeartbeatThenRetry"
+- 断言："TestChatPreambleKeepsOneTokenCompletion"
+
+### C-388 Chat 流内错误识别
+- 文件：backend/internal/handler/ops_error_logger.go
+- 断言："isOpsChatSSEErrorEnvelope"
+- 断言："parsed.ChatErrorEnvelope && len(service.GetOpsStreamErrors(c)) > 0"
+
+### C-389 Chat 换号排除心跳字节
+- 文件：backend/internal/handler/openai_chat_completions.go
+- 断言："semanticSizeBeforeForward := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)"
+- 断言："openAIForwardMayFailover(c, semanticSizeBeforeForward, failoverErr)"
+
+### C-390 Chat 开始框架全请求大小保护
+- 文件：backend/internal/service/openai_gateway_chat_completions.go
+- 断言："refusalDetector := &openAIChatSilentRefusalDetector{enabled: true}"
+- 断言："recordOpenAIStreamKeepaliveBytes(c, written)"
+
 ### C-384 Grok 视频中转响应尺寸与媒体地址兼容
 - 文件：backend/internal/service/openai_video_grok_compat.go
 - 断言："normalizeGrokVideoRelayGeometry"
