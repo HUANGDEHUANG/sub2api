@@ -11,6 +11,8 @@ from urllib.parse import urlsplit, urlunsplit
 from deploy import docker, NAME
 
 manifest = json.loads(Path('/home/serveradmin/releases/buaga-current.json').read_text())
+release = manifest['release']
+assert re.fullmatch(r'[a-z0-9-]+', release), 'Invalid release identity'
 application = docker('GET', '/containers/' + manifest['container'] + '/json')
 assert application['Image'] == manifest['image_id']
 assert application['State']['Health']['Status'] == 'healthy'
@@ -38,9 +40,9 @@ env_path = Path('/opt/sub2api-price-monitor/.env')
 before = env_path.read_text()
 updated, count = re.subn(r'^SUB2API_API_BASE_URL=.*$', 'SUB2API_API_BASE_URL=' + target, before, flags=re.M)
 assert count == 1, 'Cannot find unique persistent API base URL'
-backup_env = env_path.with_name('.env.before-api-rebind-20260917')
+backup_env = env_path.with_name('.env.before-api-rebind-' + release)
 assert not backup_env.exists()
-backup = NAME + '-before-api-rebind-20260917'
+backup = NAME + '-before-api-rebind-' + release
 payload = copy.deepcopy(live['Config'])
 payload.pop('Hostname', None)
 payload['Image'] = live['Image']
@@ -77,7 +79,7 @@ except Exception:
     env_path.write_text(before)
     try:
         docker('POST', '/containers/' + NAME + '/stop?t=60')
-        docker('POST', '/containers/' + NAME + '/rename?name=' + NAME + '-failed-api-rebind-20260917')
+        docker('POST', '/containers/' + NAME + '/rename?name=' + NAME + '-failed-api-rebind-' + release)
     except RuntimeError:
         pass
     docker('POST', '/containers/' + backup + '/rename?name=' + NAME)
