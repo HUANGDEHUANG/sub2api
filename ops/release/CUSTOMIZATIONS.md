@@ -7,6 +7,17 @@
 
 迁移前 R3 已丢失的生图推荐卡及推荐徽章在本次功能分支中恢复，以下新增断言与交互测试保护这些入口。
 
+### C-384 Grok 视频中转响应尺寸与媒体地址兼容
+- 文件：backend/internal/service/openai_video_grok_compat.go
+- 断言："normalizeGrokVideoRelayGeometry"
+- 断言："metadata.video_url"
+- 断言："counts[key] > 1"
+
+### C-385 Grok 视频本站提交查询下载回归
+- 文件：backend/internal/service/openai_video_grok_compat_test.go
+- 断言："TestOpenAIVideoGrokRelayCreatePollAndContent"
+- 断言："TestOpenAIVideoGrokRelayGeometryValidation"
+
 ### C-381 用户仪表盘生图推荐入口
 - 文件：frontend/src/views/user/DashboardView.vue
 - 断言："v-if=\"imageWorkbench\""

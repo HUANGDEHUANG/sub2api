@@ -159,3 +159,92 @@ func TestOpenAIVideoGrokFlatDoneStatusAndContent(t *testing.T) {
 	require.Equal(t, "/v1/videos/paid-task/content", upstream.requests[2].URL.Path)
 	require.Equal(t, "bytes=0-3", upstream.requests[2].Header.Get("Range"))
 }
+
+func TestOpenAIVideoGrokRelayGeometryValidation(t *testing.T) {
+	account := openAIVideoTestAccount()
+	account.Extra = map[string]any{"openai_video_protocol": "grok"}
+	for _, tc := range []struct {
+		name  string
+		body  string
+		valid bool
+	}{
+		{"landscape", `{"size":"16:9","quality":"480p","seconds":"6"}`, true},
+		{"portrait", `{"size":"9:16","quality":"720p","resolution":"hd"}`, true},
+		{"missing_quality", `{"size":"16:9"}`, false},
+		{"unknown_quality", `{"size":"16:9","quality":"4k"}`, false},
+		{"conflicting_resolution", `{"size":"16:9","quality":"480p","resolution":"720p"}`, false},
+		{"conflicting_aspect", `{"size":"16:9","quality":"480p","aspect_ratio":"9:16"}`, false},
+		{"duplicate_size", `{"size":"16:9","quality":"480p","size":"bad"}`, false},
+		{"duplicate_quality", `{"size":"16:9","quality":"480p","quality":"720p"}`, false},
+		{"duplicate_resolution", `{"size":"16:9","quality":"480p","resolution":"480p","resolution":"720p"}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := []byte(tc.body)
+			got := normalizeOpenAIVideoResponse(account, body)
+			err := validateOpenAIVideoResponseBilling(got, account)
+			if tc.valid {
+				require.NoError(t, err)
+				require.False(t, gjson.GetBytes(got, "size").Exists())
+				require.Equal(t, gjson.GetBytes(body, "size").String(), gjson.GetBytes(got, "aspect_ratio").String())
+			} else {
+				require.Error(t, err)
+			}
+			require.Error(t, validateOpenAIVideoOriginalResolution(body, "application/json"), "client requests remain strict")
+			require.Equal(t, body, normalizeOpenAIVideoResponse(openAIVideoTestAccount(), body), "native responses remain unchanged")
+		})
+	}
+}
+
+func TestOpenAIVideoGrokRelayCreatePollAndContent(t *testing.T) {
+	const accepted = `{"id":"relay-task","status":"queued","model":"grok-imagine-video-1.5","seconds":"6","size":"16:9","quality":"480p"}`
+	const completed = `{"id":"relay-task","status":"completed","model":"grok-imagine-video-1.5","seconds":"6","size":"16:9","quality":"480p","metadata":{"video_url":"https://signed.example/clip.mp4?token=secret","keep":true}}`
+	upstream := &grokMediaContentUpstreamStub{responses: []*http.Response{
+		grokMediaContentStatusResponse(accepted),
+		grokMediaContentStatusResponse(completed),
+		grokMediaContentStatusResponse(completed),
+		{StatusCode: http.StatusPartialContent, Header: http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 0-3/100"}}, Body: io.NopCloser(strings.NewReader("mp4!"))},
+	}}
+	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+	account := openAIVideoTestAccount()
+	account.Extra = map[string]any{"openai_video_protocol": "grok"}
+	c, recorder := grokMediaContentTestContext(http.MethodPost, "https://api.example/v1/videos", nil)
+	saved := 0
+	_, err := svc.ForwardOpenAIVideoCreate(context.Background(), c, account,
+		[]byte(`{"model":"grok-imagine-video-1.5","prompt":"waves","seconds":"6","resolution":"480p","aspect_ratio":"16:9"}`), "application/json",
+		func(result *OpenAIForwardResult) error {
+			saved++
+			require.False(t, c.Writer.Written())
+			require.Equal(t, "relay-task", result.ResponseID)
+			require.Equal(t, "480p", result.VideoResolution)
+			require.Equal(t, 6, result.VideoDurationSeconds)
+			require.Zero(t, result.VideoCount)
+			return nil
+		})
+	require.NoError(t, err)
+	require.Equal(t, 1, saved)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "relay-task", gjson.Get(recorder.Body.String(), "id").String())
+
+	c, recorder = grokMediaContentTestContext(http.MethodGet, "https://api.example/v1/videos/relay-task", nil)
+	result, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideoStatus, "relay-task", nil, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, result.VideoCount)
+	require.Equal(t, 6, result.VideoDurationSeconds)
+	require.Equal(t, "480p", result.VideoResolution)
+	require.Equal(t, "/v1/videos/relay-task/content", gjson.Get(recorder.Body.String(), "video_url").String())
+	require.True(t, gjson.Get(recorder.Body.String(), "metadata.keep").Bool())
+	require.NotContains(t, recorder.Body.String(), "signed.example")
+	require.NotContains(t, recorder.Body.String(), "token=secret")
+
+	c, recorder = grokMediaContentTestContext(http.MethodGet, "https://api.example/v1/videos/relay-task/content", map[string]string{"Range": "bytes=0-3"})
+	_, err = svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideoContent, "relay-task", nil, "")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusPartialContent, recorder.Code)
+	require.Equal(t, "mp4!", recorder.Body.String())
+	require.Len(t, upstream.requests, 4)
+	require.Equal(t, "/v1/videos/relay-task/content", upstream.requests[3].URL.Path)
+	for _, req := range upstream.requests[1:] {
+		require.Equal(t, http.MethodGet, req.Method)
+		require.Equal(t, "relay.example", req.URL.Host)
+	}
+}
