@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,7 +10,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
+
+var ErrAdminVideoPreviewUnavailable = errors.New("video is no longer available from upstream")
 
 // Historical completed tasks are previewable without a separately captured URL.
 // Enforce retention on every read as well as in the cleanup job.
@@ -138,7 +142,17 @@ func (s *OpenAIGatewayService) StreamAdminVideoPreview(c *gin.Context, account *
 	if err != nil {
 		return err
 	}
+	if account.IsOpenAIApiKey() && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone) {
+		_ = resp.Body.Close()
+		resp, err = s.adminVideoPreviewFallback(c, account, requestID, target, token, proxyURL)
+		if err != nil {
+			return err
+		}
+	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+		return ErrAdminVideoPreviewUnavailable
+	}
 	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
 		c.Header("Content-Range", resp.Header.Get("Content-Range"))
 		c.Status(resp.StatusCode)
@@ -152,4 +166,69 @@ func (s *OpenAIGatewayService) StreamAdminVideoPreview(c *gin.Context, account *
 		return fmt.Errorf("upstream did not return video content")
 	}
 	return writeGrokMediaContentResponse(c, resp)
+}
+
+// Some compatible relays expose a signed download URL instead of /content.
+// Only read an existing completed task, with no scheduling or billing callbacks.
+func (s *OpenAIGatewayService) adminVideoPreviewFallback(c *gin.Context, account *Account, requestID, canonical, token, proxyURL string) (*http.Response, error) {
+	if err := c.Request.Context().Err(); err != nil {
+		return nil, err
+	}
+	taskID, err := adminVideoTaskID(requestID)
+	if err != nil {
+		return nil, err
+	}
+	statusURL := strings.TrimSuffix(canonical, "/content")
+	ctx := WithHTTPUpstreamRedirectsDisabled(c.Request.Context())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, statusURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+	account.ApplyHeaderOverrides(req.Header)
+	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+		return nil, ErrAdminVideoPreviewUnavailable
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("video task status unavailable")
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if err != nil || len(body) > 1<<20 || !gjson.ValidBytes(body) {
+		return nil, fmt.Errorf("invalid video task status")
+	}
+	body = normalizeOpenAIVideoResponse(account, body)
+	if openAIVideoCompletion(body, taskID) == nil {
+		return nil, fmt.Errorf("video task is not completed")
+	}
+	for _, field := range []string{"id", "task_id"} {
+		if id := gjson.GetBytes(body, field).String(); id != "" && id != taskID {
+			return nil, fmt.Errorf("video task ID mismatch")
+		}
+	}
+	for _, field := range []string{"download_url", "video.url", "video_url", "url", "result_url"} {
+		value := gjson.GetBytes(body, field)
+		if value.Type != gjson.String || strings.TrimSpace(value.String()) == "" {
+			continue
+		}
+		target, err := s.zhongYVideoDownloadURL(account, strings.TrimSpace(value.String()))
+		if err != nil {
+			return nil, err
+		}
+		if target == canonical {
+			continue
+		}
+		download, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+		if err != nil {
+			return nil, err
+		}
+		download.Header.Set("Range", c.GetHeader("Range"))
+		return s.doZhongYVideoDownload(download, proxyURL, account)
+	}
+	return nil, ErrAdminVideoPreviewUnavailable
 }

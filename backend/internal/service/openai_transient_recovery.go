@@ -41,9 +41,27 @@ func (r *openAITransientRecovery) success(id uint64) (accepted, recovered bool) 
 	}
 	delete(r.probes, id)
 	r.successes++
-	required := r.required
-	if required < 1 { required = 2 }
-	return true, r.successes >= required
+	return true, r.successes >= r.requiredSuccesses()
+}
+
+func (r *openAITransientRecovery) requiredSuccesses() int {
+	if r.required < 1 {
+		return 2
+	}
+	return r.required
+}
+
+func (r *openAITransientRecovery) oldestProbe() *time.Time {
+	var oldest time.Time
+	for _, started := range r.probes {
+		if oldest.IsZero() || started.Before(oldest) {
+			oldest = started
+		}
+	}
+	if oldest.IsZero() {
+		return nil
+	}
+	return &oldest
 }
 
 func (r *openAITransientRecovery) state(blockUntil, now time.Time) string {

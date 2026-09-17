@@ -49,17 +49,19 @@ type openAIAccountModelTransientDecision struct {
 }
 
 type OpenAIAccountModelTransientSnapshot struct {
-	AccountID         int64     `json:"account_id"`
-	Model             string    `json:"model"`
-	FailureStreak     int       `json:"failure_streak"`
-	LastFailureAt     time.Time `json:"last_failure_at"`
-	BlockUntil        time.Time `json:"block_until"`
-	RemainingSecs     int64     `json:"remaining_seconds"`
-	Scope             string    `json:"scope,omitempty"`
-	State             string    `json:"state,omitempty"`
-	Reason            string    `json:"reason,omitempty"`
-	ProbesInFlight    int       `json:"probes_in_flight,omitempty"`
-	RecoverySuccesses int       `json:"recovery_successes,omitempty"`
+	AccountID         int64      `json:"account_id"`
+	Model             string     `json:"model"`
+	FailureStreak     int        `json:"failure_streak"`
+	LastFailureAt     time.Time  `json:"last_failure_at"`
+	BlockUntil        time.Time  `json:"block_until"`
+	RemainingSecs     int64      `json:"remaining_seconds"`
+	Scope             string     `json:"scope,omitempty"`
+	State             string     `json:"state,omitempty"`
+	Reason            string     `json:"reason,omitempty"`
+	ProbesInFlight    int        `json:"probes_in_flight,omitempty"`
+	RecoverySuccesses int        `json:"recovery_successes,omitempty"`
+	RecoveryRequired  int        `json:"recovery_required,omitempty"`
+	ProbeStartedAt    *time.Time `json:"probe_started_at,omitempty"`
 }
 
 type openAIAccountModelTransientState struct {
@@ -144,7 +146,9 @@ func (s *openAIAccountModelTransientState) recordFailureWithInitialCooldown(acco
 	entry.lastTouched = now
 	entry.recovery = openAITransientRecovery{}
 	entry.recovery.required = 1
-	if entry.failureStreak >= 2 { entry.recovery.required = 2 }
+	if entry.failureStreak >= 2 {
+		entry.recovery.required = 2
+	}
 
 	cooldown := initialCooldown
 	switch {
@@ -314,6 +318,7 @@ func (s *openAIAccountModelTransientState) snapshot(now time.Time) []OpenAIAccou
 			RemainingSecs: remaining,
 			Scope:         "account_model", State: entry.recovery.state(entry.blockUntil, now), Reason: entry.reason,
 			ProbesInFlight: len(entry.recovery.probes), RecoverySuccesses: entry.recovery.successes,
+			RecoveryRequired: entry.recovery.requiredSuccesses(), ProbeStartedAt: entry.recovery.oldestProbe(),
 		})
 	}
 

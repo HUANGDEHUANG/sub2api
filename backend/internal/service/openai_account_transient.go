@@ -108,7 +108,9 @@ func (s *openAIAccountTransientState) recordFailureLocked(accountID int64, now t
 	entry.lastFailure = now
 	entry.recovery = openAITransientRecovery{}
 	entry.recovery.required = 1
-	if entry.failureStreak >= 2 { entry.recovery.required = 2 }
+	if entry.failureStreak >= 2 {
+		entry.recovery.required = 2
+	}
 	entry.reason = "upstream_connection"
 	if len(reason) > 0 {
 		entry.reason = reason[0]
@@ -209,24 +211,6 @@ func (s *openAIAccountTransientState) observeSuccess(accountID int64) {
 	delete(s.observations, accountID)
 }
 
-func (s *openAIAccountTransientState) failProbe(accountID int64, id uint64, now time.Time) openAIAccountTransientDecision {
-	if s == nil || id == 0 {
-		return openAIAccountTransientDecision{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entry, exists := s.entries[accountID]
-	_, admitted := entry.recovery.probes[id]
-	if !exists || !admitted || now.Before(entry.blockedUntil) {
-		return openAIAccountTransientDecision{}
-	}
-	// Retire this generation while still holding the lock. Any late success
-	// from its companion is then unable to clear the next cooldown.
-	entry.recovery = openAITransientRecovery{}
-	s.entries[accountID] = entry
-	return s.recordFailureLocked(accountID, now, "recovery_probe_failed")
-}
-
 func (s *openAIAccountTransientState) observeModelFailure(accountID int64, model string, status int, now time.Time) openAIAccountTransientDecision {
 	if s == nil || model == "" {
 		return openAIAccountTransientDecision{}
@@ -305,6 +289,7 @@ func (s *openAIAccountTransientState) snapshot(now time.Time) []OpenAIAccountMod
 			RemainingSecs: remaining,
 			Scope:         "account", State: entry.recovery.state(entry.blockedUntil, now), Reason: entry.reason,
 			ProbesInFlight: len(entry.recovery.probes), RecoverySuccesses: entry.recovery.successes,
+			RecoveryRequired: entry.recovery.requiredSuccesses(), ProbeStartedAt: entry.recovery.oldestProbe(),
 		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].AccountID < items[j].AccountID })

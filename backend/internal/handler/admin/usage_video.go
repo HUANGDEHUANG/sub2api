@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -63,6 +64,10 @@ func (h *UsageHandler) VideoContent(c *gin.Context) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	if err := h.videoGateway.StreamAdminVideoPreview(c, account, log.RequestID); err != nil && !c.Writer.Written() {
 		// Do not expose provider error bodies, URLs or credentials to the browser.
+		if errors.Is(err, service.ErrAdminVideoPreviewUnavailable) {
+			response.Error(c, http.StatusGone, "Video is no longer available from the upstream provider")
+			return
+		}
 		response.Error(c, http.StatusBadGateway, "Video is unavailable from the upstream provider")
 	}
 }

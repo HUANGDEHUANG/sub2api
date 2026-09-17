@@ -16,6 +16,7 @@ export function recoveryStateLabel(row: OpsModelCooldown, locale: string): strin
 
 export function recoveryReasonLabel(row: OpsModelCooldown, locale: string): string {
   const zh = locale.startsWith('zh')
+  if (row.reason?.startsWith('anthropic_')) return zh ? '上游流式响应失败（仅此模型）' : 'Upstream stream failure (this model only)'
   if (row.reason?.startsWith('cross_model_')) return zh ? '多个模型持续失败' : 'Persistent failures across models'
   if (row.reason === 'upstream_connection') return zh ? '上游连接失败' : 'Upstream connection failed'
   if (row.reason === 'upstream_transport') return zh ? '上游传输中断' : 'Upstream transport interrupted'

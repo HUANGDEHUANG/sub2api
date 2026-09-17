@@ -150,3 +150,22 @@ func TestOpenAITransientRefinement_WaiterLimit(t *testing.T) {
 	}
 	require.Zero(t, s.waiterTotal)
 }
+
+func TestOpenAITransientRefinement_ModelProbeDoesNotExtendAccountCooldown(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := transientPoolAccount(1)
+	state := svc.getOpenAIAccountTransientState()
+	d := state.recordFailure(1, time.Now().Add(-20*time.Second))
+	selection := &AccountSelectionResult{Account: &account, Acquired: true}
+	selection, ok := svc.finalizeOpenAIAccountTransientSelection(selection, "model-a")
+	require.True(t, ok)
+	selection.CompleteTransient(false, &UpstreamFailoverError{StatusCode: 503, ResponseBody: []byte("model unavailable")})
+	selection.ReleaseFunc()
+	rows := state.snapshot(time.Now())
+	require.Len(t, rows, 1)
+	require.Equal(t, d.BlockUntil.UTC(), rows[0].BlockUntil)
+	require.Equal(t, 1, rows[0].FailureStreak)
+	require.Equal(t, 1, rows[0].RecoveryRequired)
+	require.Nil(t, rows[0].ProbeStartedAt)
+	require.False(t, state.isBlocked(1, time.Now()), "another model may validate recovery")
+}

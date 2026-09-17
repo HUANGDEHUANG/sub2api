@@ -428,6 +428,8 @@ export interface OpsModelCooldown {
   state?: 'cooldown' | 'awaiting_probe' | 'probing' | 'recovering'
   reason?: string
   probes_in_flight?: number
+  recovery_required?: number
+  probe_started_at?: string
   recovery_successes?: number
 }
 

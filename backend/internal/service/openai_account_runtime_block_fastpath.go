@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -563,14 +562,12 @@ func (s *OpenAIGatewayService) wrapOpenAIAccountTransientProbeRelease(selection 
 		return nil, false
 	}
 	var once, completeOnce sync.Once
-	selection.transientComplete = func(success bool, observedErr error) {
+	selection.transientComplete = func(success bool, _ error) {
 		completeOnce.Do(func() {
 			if !success {
-				var failover *UpstreamFailoverError
-				if errors.As(observedErr, &failover) && !failover.RequestScopedTransient && shouldTripOpenAIAccountTransientCircuit(failover.StatusCode, failover.ResponseBody) {
-					d := state.failProbe(account.ID, probeID, time.Now())
-					s.logOpenAIAccountTransientDecision(account, d, failover.StatusCode, "recovery_probe_failed")
-				}
+				// Forwarding already records model failures, cross-model evidence and
+				// transport outages. A failed model probe is not fresh evidence that
+				// every model on this account is unavailable.
 				return
 			}
 			accountAccepted := state.recordSuccess(account.ID, time.Now(), probeID)

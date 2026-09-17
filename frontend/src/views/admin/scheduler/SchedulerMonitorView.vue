@@ -136,7 +136,8 @@
                 </div>
                 <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
                   <span v-if="!row.state || row.state === 'cooldown'">{{ t('admin.ops.scheduler.remaining') }} <strong class="font-mono text-amber-700 dark:text-amber-300">{{ formatRemaining(row.remaining_seconds) }}</strong></span>
-                  <span v-else>{{ locale.startsWith('zh') ? '验证进度' : 'Recovery progress' }} {{ row.recovery_successes || 0 }}/2 · {{ locale.startsWith('zh') ? '进行中' : 'In flight' }} {{ row.probes_in_flight || 0 }}</span>
+                  <span v-else>{{ locale.startsWith('zh') ? '验证进度' : 'Recovery progress' }} {{ row.recovery_successes || 0 }}/{{ row.recovery_required || 2 }} · {{ locale.startsWith('zh') ? '进行中' : 'In flight' }} {{ row.probes_in_flight || 0 }}</span>
+                  <span v-if="row.probe_started_at">{{ locale.startsWith('zh') ? '试探开始' : 'Probe started' }} {{ new Date(row.probe_started_at).toLocaleString() }}</span>
                   <span>{{ t('admin.ops.scheduler.streak') }} <strong class="font-mono text-gray-700 dark:text-gray-200">{{ row.failure_streak }}</strong></span>
                 </div>
               </div>

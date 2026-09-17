@@ -14,12 +14,15 @@ func (s *OpsService) GetSchedulerSnapshot(ctx context.Context) (*OpenAIAccountSc
 	if err := s.RequireMonitoringEnabled(ctx); err != nil {
 		return nil, err
 	}
-	if s.openAIGatewayService == nil {
-		return &OpenAIAccountSchedulerSnapshot{
-			GeneratedAt:    time.Now().UTC(),
-			ModelCooldowns: []OpenAIAccountModelTransientSnapshot{},
-		}, nil
+	snapshot := OpenAIAccountSchedulerSnapshot{
+		GeneratedAt:    time.Now().UTC(),
+		ModelCooldowns: []OpenAIAccountModelTransientSnapshot{},
 	}
-	snapshot := s.openAIGatewayService.SnapshotOpenAIAccountSchedulerState()
+	if s.openAIGatewayService != nil {
+		snapshot = s.openAIGatewayService.SnapshotOpenAIAccountSchedulerState()
+	}
+	if s.gatewayService != nil {
+		snapshot.ModelCooldowns = append(snapshot.ModelCooldowns, s.gatewayService.anthropicStreamRecovery().snapshot(time.Now())...)
+	}
 	return &snapshot, nil
 }

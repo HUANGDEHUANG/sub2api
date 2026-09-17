@@ -141,6 +141,21 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if account != nil && account.IsBedrock() {
 		return s.forwardBedrock(ctx, c, account, parsed, startTime)
 	}
+	recoveryModel := canonicalOpenAIAccountSchedulingModel(account, parsed.Model)
+	releaseRecovery, completeRecovery, admitted := s.admitAnthropicStreamRecoveryModel(ctx, account, recoveryModel, nil)
+	if !admitted {
+		return nil, &UpstreamFailoverError{StatusCode: http.StatusServiceUnavailable, ResponseBody: []byte(`{"error":{"message":"Model recovery probe in progress"}}`)}
+	}
+	defer func() {
+		var failover *UpstreamFailoverError
+		if errors.As(err, &failover) && !failover.RequestScopedTransient && failover.StatusCode >= 500 {
+			s.recordAnthropicStreamFailure(ctx, account, recoveryModel, &anthropicStreamFailure{reason: "upstream_http_error", transient: true})
+		}
+		completeRecovery(err == nil && result != nil && !result.ClientDisconnect)
+		if releaseRecovery != nil {
+			releaseRecovery()
+		}
+	}()
 
 	// Beta policy: evaluate once; block check + cache filter set for buildUpstreamRequest.
 	// Always overwrite the cache to prevent stale values from a previous retry with a different account.
