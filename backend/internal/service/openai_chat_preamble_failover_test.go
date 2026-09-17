@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -112,4 +113,18 @@ func TestChatPreambleHeartbeatThenRetry(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "resp_success")
 	require.Equal(t, 1, strings.Count(rec.Body.String(), `"role":"assistant"`))
 	require.Equal(t, 1, strings.Count(rec.Body.String(), "[DONE]"))
+}
+
+func TestChatPreambleDoesNotRetryCanceledClient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+	resp := &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(chatPreambleFixture + chatBusyFixture))}
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	_, err := svc.handleChatStreamingResponse(resp, c, &Account{ID: 1, Platform: PlatformOpenAI}, "gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(), 220)
+	require.Error(t, err)
+	var failover *UpstreamFailoverError
+	require.False(t, errors.As(err, &failover))
 }
