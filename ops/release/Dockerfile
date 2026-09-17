@@ -5,12 +5,13 @@ RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
+COPY docs/legal/ /src/docs/legal/
 RUN pnpm build
 
 FROM golang:1.27.0-alpine AS backend
 WORKDIR /src/backend
 COPY backend/ ./
-COPY --from=frontend /src/frontend/dist/ ./internal/web/dist/
+COPY --from=frontend /src/backend/internal/web/dist/ ./internal/web/dist/
 ARG VERSION
 ARG COMMIT
 RUN CGO_ENABLED=0 go build -tags embed -trimpath -ldflags "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildType=custom" -o /out/sub2api ./cmd/server
@@ -18,5 +19,5 @@ RUN CGO_ENABLED=0 go build -tags embed -trimpath -ldflags "-s -w -X main.Version
 FROM ${BUAGA_BASE_IMAGE}
 USER root
 COPY --from=backend /out/sub2api /app/sub2api
-COPY --from=frontend /src/frontend/dist/ /app/.buaga-release/
+COPY --from=frontend /src/backend/internal/web/dist/ /app/.buaga-release/
 USER sub2api

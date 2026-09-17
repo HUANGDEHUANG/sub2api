@@ -47,6 +47,13 @@ def verify(root: Path, registry: Path) -> list[str]:
         path = root / filename
         if not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
             failures.append('定制文件缺失：' + filename)
+    # These imported Markdown files live outside frontend/ and were omitted
+    # from the historical source archive. Missing them breaks a fresh build.
+    if (root / 'frontend/src/views/public/LegalDocumentView.vue').exists():
+        for language in ('zh', 'en'):
+            document = root / f'docs/legal/admin-compliance.{language}.md'
+            if not document.is_file():
+                failures.append('前端构建依赖缺失：' + str(document.relative_to(root)))
     return failures
 
 

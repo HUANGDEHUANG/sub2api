@@ -11,7 +11,7 @@ import subprocess
 
 NAME = 'sub2api-price-monitor'
 BACKUP = NAME + '-before-explicit-suffix-20260917'
-IMAGE = 'sub2api-price-monitor:explicit-suffix-20260917'
+IMAGE = 'sub2api-price-monitor:explicit-suffix-20260917-r2'
 LIVE_SOURCE_SHA = '9ec806a0d9e1d281fb67c29c61fcd3e9f5644f56f4bb3bad55d0a6011a5b9ec4'
 
 
@@ -47,9 +47,15 @@ def prepare(root):
     assert sha == LIVE_SOURCE_SHA, 'Live monitor changed; rebase before deploying'
     source = root / 'verified-source/ops/price-monitor'
     assert hashlib.sha256((source / 'monitor.py').read_bytes()).hexdigest() != sha
-    subprocess.run(['docker', 'build', '--network=none', '--build-arg', 'MONITOR_BASE=' + live['Image'],
+    base_tag = 'sub2api-price-monitor:verified-base-' + live['Image'].split(':')[1][:16]
+    subprocess.run(['docker', 'tag', live['Image'], base_tag], check=True)
+    assert docker('GET', '/images/' + base_tag + '/json')['Id'] == live['Image']
+    subprocess.run(['docker', 'build', '--pull=false', '--network=none', '--build-arg', 'MONITOR_BASE=' + base_tag,
                     '--label', 'buaga.source.commit=' + info['source_git_commit'],
                     '-f', str(source / 'Dockerfile'), '-t', IMAGE, str(source)], check=True)
+    assert docker('GET', '/images/' + base_tag + '/json')['Id'] == live['Image']
+    base_layers = docker('GET', '/images/' + live['Image'] + '/json')['RootFS']['Layers']
+    assert docker('GET', '/images/' + IMAGE + '/json')['RootFS']['Layers'][:len(base_layers)] == base_layers
     subprocess.run(['docker', 'run', '--rm', '--network=none', '--entrypoint', 'python',
                     '-v', str(source) + ':/tests:ro', '-w', '/tests', IMAGE, '-m', 'unittest', '-q'], check=True)
     subprocess.run(['docker', 'run', '--rm', '--network=none', '--entrypoint', 'python',
