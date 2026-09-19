@@ -24,13 +24,15 @@ import (
 
 const (
 	openAIImagePreviewContextKey = "openai_image_preview_bytes"
-	openAIImagePreviewDir        = "/app/data/admin-image-previews"
 	openAIImagePreviewMaxCount   = 8
 	openAIImagePreviewMaxBytes   = 20 << 20
 	adminVideoPreviewDir         = "/app/data/admin-video-previews"
 	adminVideoPreviewMaxBytes    = 100 << 20
 	adminVideoPreviewRetention   = 7 * 24 * time.Hour
 )
+
+// Tests replace the storage root once, before any preview workers start.
+var openAIImagePreviewDir = "/app/data/admin-image-previews"
 
 // OpenAIImagePreviewAsset is an in-memory image returned by a synchronous image request.
 // It is intentionally never exposed through a regular user DTO.

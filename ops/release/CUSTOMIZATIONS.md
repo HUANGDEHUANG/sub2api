@@ -33,6 +33,17 @@
 - 断言："refusalDetector := &openAIChatSilentRefusalDetector{enabled: true}"
 - 断言："recordOpenAIStreamKeepaliveBytes(c, written)"
 
+### C-391 流错误分类保留请求拒绝与真实 503 换号
+- 文件：backend/internal/service/openai_apikey_availability_test.go
+- 断言："TestOpenAIAPIKeyAvailability_ExplicitStream503KeepsRequestRejections"
+- 断言："require.False(t, openAIStreamErrorEventShouldFailover([]byte(payload), message))"
+- 断言："TestOpenAIAPIKeyAvailability_NonStreamingPassthroughTerminal"
+
+### C-392 无状态码的临时流通知允许后续完成
+- 文件：backend/internal/service/openai_gateway_response_flush_test.go
+- 断言："TestOpenAIResponseFlush_RecentBareErrorAllowsCompletedBeforeIdleTimeout"
+- 断言："completedWaiting := make(chan struct{})"
+
 ### C-384 Grok 视频中转响应尺寸与媒体地址兼容
 - 文件：backend/internal/service/openai_video_grok_compat.go
 - 断言："normalizeGrokVideoRelayGeometry"
@@ -65,7 +76,7 @@
 
 ### C-001 backend/cmd/server/VERSION
 - 文件：backend/cmd/server/VERSION
-- 断言："0.2.5"
+- 断言："0.2.7"
 
 
 ### C-002 backend/cmd/server/wire_gen.go
