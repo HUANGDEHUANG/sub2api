@@ -1369,6 +1369,34 @@ func sanitizeOpenAICapacityShedErrorCodeForClient(payload []byte) ([]byte, bool)
 	return updated, changed
 }
 
+// openAIStreamErrorStatus reads the status fields used by OpenAI-compatible
+// providers. The upstream PR #7339 documents providers that use error.status
+// instead of error.status_code; accepting both prevents a real 5xx stream
+// failure from being downgraded to a generic 502 and skipping cooldown logic.
+func openAIStreamErrorStatus(payload []byte) int {
+	for _, path := range []string{
+		"response.error.status_code",
+		"response.error.status",
+		"error.status_code",
+		"error.status",
+		"status_code",
+		"status",
+	} {
+		value := gjson.GetBytes(payload, path)
+		if !value.Exists() {
+			continue
+		}
+		status := int(value.Int())
+		if status == 0 && value.Type == gjson.String {
+			status, _ = strconv.Atoi(strings.TrimSpace(value.String()))
+		}
+		if status >= 100 && status <= 599 {
+			return status
+		}
+	}
+	return 0
+}
+
 func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 	if isOpenAIContextWindowError(message, payload) {
 		return http.StatusBadRequest
@@ -1380,11 +1408,10 @@ func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 		errType = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.type").String()))
 	}
 	combined := strings.TrimSpace(errType + " " + code + " " + strings.ToLower(strings.TrimSpace(message)))
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
-		if status := int(gjson.GetBytes(payload, path).Int()); status == http.StatusUnauthorized ||
-			status == http.StatusForbidden || status == http.StatusTooManyRequests || status == 529 {
-			return status
-		}
+	if status := openAIStreamErrorStatus(payload); status == http.StatusUnauthorized ||
+		status == http.StatusForbidden || status == http.StatusTooManyRequests || status == 529 ||
+		openAIAPIKeyAvailabilityTransientStatus(status) {
+		return status
 	}
 	switch {
 	case strings.Contains(combined, "rate_limit"):
@@ -1410,12 +1437,12 @@ func openAIStreamFailureStatus(payload []byte, message string) int {
 	}
 	semanticStatus := openAIStreamFailedEventSemanticStatus(payload, message)
 	switch semanticStatus {
-	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests, 529:
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests, 529,
+		http.StatusInternalServerError, http.StatusBadGateway, http.StatusGatewayTimeout,
+		520, 521, 522, 523, 524:
 		return semanticStatus
 	case http.StatusServiceUnavailable:
-		if isOpenAIUpstreamCapacityShedEvent(payload) {
-			return semanticStatus
-		}
+		return semanticStatus
 	}
 	return http.StatusBadGateway
 }
@@ -1428,10 +1455,8 @@ func openAIStreamCredentialAuthFailure(payload []byte) bool {
 	if len(bytes.TrimSpace(payload)) == 0 || !gjson.ValidBytes(payload) {
 		return false
 	}
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
-		if int(gjson.GetBytes(payload, path).Int()) == http.StatusUnauthorized {
-			return true
-		}
+	if openAIStreamErrorStatus(payload) == http.StatusUnauthorized {
+		return true
 	}
 	for _, path := range []string{"response.error.type", "error.type", "type"} {
 		errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, path).String()))
@@ -1546,6 +1571,9 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	if semanticStatus == http.StatusTooManyRequests {
 		return true
 	}
+	if openAIAPIKeyAvailabilityTransientStatus(semanticStatus) {
+		return true
+	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
 		return true
 	}
@@ -1588,10 +1616,14 @@ func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
 	if isOpenAIUpstreamAccessStateError(message, payload) {
 		return true
 	}
-	switch openAIStreamFailedEventSemanticStatus(payload, message) {
+	semanticStatus := openAIStreamFailedEventSemanticStatus(payload, message)
+	switch semanticStatus {
 	case http.StatusForbidden:
 		return openAIStream403AccountFailure(payload, message)
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
+		return true
+	}
+	if openAIAPIKeyAvailabilityTransientStatus(semanticStatus) {
 		return true
 	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
@@ -1628,10 +1660,8 @@ func (s *OpenAIGatewayService) openAIAPIKeyTransientStreamStatus(account *Accoun
 	if !openAIStreamFailedEventShouldFailover(payload, message) {
 		return 0
 	}
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
-		if status := int(gjson.GetBytes(payload, path).Int()); openAIAPIKeyAvailabilityTransientStatus(status) {
-			return status
-		}
+	if status := openAIStreamErrorStatus(payload); openAIAPIKeyAvailabilityTransientStatus(status) {
+		return status
 	}
 	for _, path := range []string{"response.error.code", "error.code", "response.error.type", "error.type"} {
 		switch strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, path).String())) {
