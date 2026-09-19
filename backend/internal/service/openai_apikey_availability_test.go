@@ -297,7 +297,10 @@ func TestOpenAIAPIKeyAvailability_ExplicitStream503KeepsRequestRejections(t *tes
 		`{"type":"response.failed","response":{"error":{"status_code":503,"code":"cyber_policy","message":"flagged for cyber policy"}}}`,
 	} {
 		t.Run(payload, func(t *testing.T) {
-			require.False(t, svc.isOpenAIAPIKeyTransientStreamFailure(account, []byte(payload), extractOpenAISSEErrorMessage([]byte(payload))))
+			message := extractOpenAISSEErrorMessage([]byte(payload))
+			require.False(t, svc.isOpenAIAPIKeyTransientStreamFailure(account, []byte(payload), message))
+			require.False(t, openAIStreamFailedEventShouldFailover([]byte(payload), message))
+			require.False(t, openAIStreamErrorEventShouldFailover([]byte(payload), message))
 		})
 	}
 }
@@ -316,7 +319,11 @@ func TestOpenAIAPIKeyAvailability_NonStreamingPassthroughTerminal(t *testing.T) 
 			_, err := svc.handlePassthroughSSEToJSON(resp, c, account, body, "alias", "")
 			require.Error(t, err)
 			var failover *UpstreamFailoverError
-			require.Equal(t, enabled, errors.As(err, &failover))
+			// Explicit 503 stream errors now fail over in both modes. The
+			// availability flag controls model cooldown, not request failover.
+			require.True(t, errors.As(err, &failover))
+			require.Equal(t, 503, failover.StatusCode)
+			require.Empty(t, rec.Body.String())
 			if enabled {
 				require.Equal(t, 503, failover.StatusCode)
 				require.False(t, failover.RetryableOnSameAccount)

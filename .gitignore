@@ -10,3 +10,4 @@ frontend/dist/
 frontend/*.tsbuildinfo
 frontend/coverage/
 .release-output/
+!docs/ANTIGRAVITY_ATTRIBUTION_429.md

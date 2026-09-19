@@ -1571,9 +1571,6 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	if semanticStatus == http.StatusTooManyRequests {
 		return true
 	}
-	if openAIAPIKeyAvailabilityTransientStatus(semanticStatus) {
-		return true
-	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
 		return true
 	}
@@ -1623,7 +1620,12 @@ func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
 		return true
 	}
-	if openAIAPIKeyAvailabilityTransientStatus(semanticStatus) {
+	// A provider may wrap a request/policy rejection in a 5xx envelope.
+	// Keep those rejections out of account failover and cooldown.
+	if !openAIStreamFailedEventShouldFailover(payload, message) {
+		return false
+	}
+	if openAIAPIKeyAvailabilityTransientStatus(openAIStreamErrorStatus(payload)) {
 		return true
 	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
@@ -1651,14 +1653,14 @@ func (s *OpenAIGatewayService) openAIAPIKeyTransientStreamStatus(account *Accoun
 			return 0
 		}
 	}
+	if !openAIStreamFailedEventShouldFailover(payload, message) {
+		return 0
+	}
 	switch openAIStreamFailedEventSemanticStatus(payload, message) {
 	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests, 529:
 		return 0
 	case http.StatusServiceUnavailable:
 		return http.StatusServiceUnavailable
-	}
-	if !openAIStreamFailedEventShouldFailover(payload, message) {
-		return 0
 	}
 	if status := openAIStreamErrorStatus(payload); openAIAPIKeyAvailabilityTransientStatus(status) {
 		return status
