@@ -87,6 +87,8 @@ func TestOpenAIAPIKeyAvailability_StreamClassification(t *testing.T) {
 		want    int
 	}{
 		{`{"type":"error","error":{"type":"server_error","message":"Failure"}}`, 500},
+		{`{"type":"error","error":{"type":"server_error","status":503,"message":"Failure"}}`, 503},
+		{`{"type":"response.failed","response":{"error":{"status":"504","message":"Failure"}}}`, 504},
 		{`{"type":"error","error":{"code":"bad_gateway","message":"Failure"}}`, 502},
 		{`{"type":"error","error":{"code":"gateway_timeout","message":"Failure"}}`, 504},
 		{`{"type":"error","error":{"code":"unknown","message":"Failure"}}`, 0},
