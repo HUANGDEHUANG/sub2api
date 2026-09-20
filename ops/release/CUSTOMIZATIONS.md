@@ -674,7 +674,7 @@
 ### C-090 backend/internal/service/account_test_service.go
 - 文件：backend/internal/service/account_test_service.go
 - 断言："AllowedHosts:           s.cfg.Security.URLAllowlist.UpstreamHosts,"
-- 断言："return urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
+- 断言："return urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
 - 断言："AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,"
 
 
@@ -805,7 +805,7 @@
 ### C-110 backend/internal/service/gateway_upstream_request.go
 - 文件：backend/internal/service/gateway_upstream_request.go
 - 断言："AllowedHosts:           s.cfg.Security.URLAllowlist.UpstreamHosts,"
-- 断言："normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
+- 断言："normalized, err := urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
 - 断言："AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,"
 
 
@@ -832,7 +832,7 @@
 ### C-114 backend/internal/service/gemini_messages_compat_service.go
 - 文件：backend/internal/service/gemini_messages_compat_service.go
 - 断言："AllowedHosts:           s.cfg.Security.URLAllowlist.UpstreamHosts,"
-- 断言："normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
+- 断言："normalized, err := urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
 - 断言："AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,"
 
 
@@ -847,7 +847,7 @@
 - 文件：backend/internal/service/grok_upstream_url.go
 - 断言："AllowedHosts:           cfg.Security.URLAllowlist.UpstreamHosts,"
 - 断言："return buildOpenAIVideoURL(account, cfg, endpoint, requestID)"
-- 断言："return urlvalidator.ValidateURLFormat(raw, cfg.Security.URLAllowlist.AllowInsecureHTTP, cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
+- 断言："return urlvalidator.ValidateURLFormat(raw, true, cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
 
 
 ### C-117 backend/internal/service/image_preview.go
@@ -1033,7 +1033,7 @@
 ### C-143 backend/internal/service/openai_gateway_request_body.go
 - 文件：backend/internal/service/openai_gateway_request_body.go
 - 断言："AllowedHosts:           s.cfg.Security.URLAllowlist.UpstreamHosts,"
-- 断言："return urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
+- 断言："return urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
 - 断言："AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,"
 
 
@@ -1462,7 +1462,7 @@
 ### C-206 backend/internal/util/urlvalidator/validator.go
 - 文件：backend/internal/util/urlvalidator/validator.go
 - 断言："func ValidateURLFormat(raw string, allowInsecureHTTP bool, allowInsecureHTTPHosts ...[]string) (string, error) {"
-- 断言："insecureHTTPAllowed := scheme == \"http\" && isAllowedHost(host, normalizeAllowlist(opts.AllowInsecureHTTPHosts))"
+- 断言："insecureHTTPAllowed := scheme == \"http\" && (opts.AllowInsecureHTTP || isAllowedHost(host, normalizeAllowlist(opts.AllowInsecureHTTPHosts)))"
 - 断言："insecureHTTPAllowed := scheme == \"http\" && isAllowedHost(host, normalizeAllowlist(insecureHTTPHosts))"
 
 
