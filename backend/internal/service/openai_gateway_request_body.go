@@ -20,7 +20,19 @@ import (
 )
 
 func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, error) {
-	normalized, err := s.validateOutboundURL(raw)
+	// Account endpoints are operator-configured. This exception must not apply
+	// to media URLs returned by an upstream or supplied in a request.
+	if s.cfg == nil {
+		return s.validateOutboundURL(raw)
+	}
+	if !s.cfg.Security.URLAllowlist.Enabled {
+		return urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)
+	}
+	normalized, err := urlvalidator.ValidateHTTPURL(raw, true, urlvalidator.ValidationOptions{
+		AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
+		RequireAllowlist: true,
+		AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
+	})
 	if err != nil {
 		return "", fmt.Errorf("invalid base_url: %w", err)
 	}
@@ -33,13 +45,12 @@ func (s *OpenAIGatewayService) validateOutboundURL(raw string) (string, error) {
 		return urlvalidator.ValidateURLFormat(raw, false)
 	}
 	if !s.cfg.Security.URLAllowlist.Enabled {
-		return urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)
+		return urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)
 	}
 	return urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
 		AllowedHosts:           s.cfg.Security.URLAllowlist.UpstreamHosts,
 		RequireAllowlist:       true,
 		AllowPrivate:           s.cfg.Security.URLAllowlist.AllowPrivateHosts,
-		AllowInsecureHTTP:      true,
 		AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,
 	})
 }

@@ -2966,7 +2966,7 @@ func TestOpenAIInvalidBaseURLWhenAllowlistDisabled(t *testing.T) {
 	}
 }
 
-func TestOpenAIValidateUpstreamBaseURLDisabledRequiresHTTPS(t *testing.T) {
+func TestOpenAIValidateAccountHTTPKeepsOutboundHTTPS(t *testing.T) {
 	cfg := &config.Config{
 		Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
@@ -2974,9 +2974,10 @@ func TestOpenAIValidateUpstreamBaseURLDisabledRequiresHTTPS(t *testing.T) {
 	}
 	svc := &OpenAIGatewayService{cfg: cfg}
 
-	if _, err := svc.validateUpstreamBaseURL("http://not-https.example.com"); err == nil {
-		t.Fatalf("expected http to be rejected when allow_insecure_http is false")
-	}
+	_, err := svc.validateUpstreamBaseURL("http://not-https.example.com")
+	require.NoError(t, err)
+	_, err = svc.validateOutboundURL("http://not-https.example.com")
+	require.Error(t, err, "media URL policy must remain HTTPS-only")
 	normalized, err := svc.validateUpstreamBaseURL("https://example.com")
 	if err != nil {
 		t.Fatalf("expected https to be allowed when allowlist disabled, got %v", err)
