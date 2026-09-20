@@ -30,6 +30,7 @@ func cnValidateProbeURL(cfg *config.Config, raw string) (string, error) {
 			AllowedHosts:           cfg.Security.URLAllowlist.UpstreamHosts,
 			RequireAllowlist:       true,
 			AllowPrivate:           cfg.Security.URLAllowlist.AllowPrivateHosts,
+			AllowInsecureHTTP:      true,
 			AllowInsecureHTTPHosts: cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,
 		})
 		if err != nil {

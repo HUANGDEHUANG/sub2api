@@ -15,6 +15,7 @@ type ValidationOptions struct {
 	AllowedHosts           []string
 	RequireAllowlist       bool
 	AllowPrivate           bool
+	AllowInsecureHTTP      bool
 	AllowInsecureHTTPHosts []string
 }
 
@@ -42,7 +43,7 @@ func ValidateHTTPURL(raw string, allowInsecureHTTP bool, opts ValidationOptions)
 	if host == "" {
 		return "", errors.New("invalid host")
 	}
-	insecureHTTPAllowed := scheme == "http" && isAllowedHost(host, normalizeAllowlist(opts.AllowInsecureHTTPHosts))
+	insecureHTTPAllowed := scheme == "http" && (opts.AllowInsecureHTTP || isAllowedHost(host, normalizeAllowlist(opts.AllowInsecureHTTPHosts)))
 	if scheme != "https" && (!allowInsecureHTTP && !insecureHTTPAllowed || scheme != "http") {
 		return "", fmt.Errorf("invalid url scheme: %s", parsed.Scheme)
 	}

@@ -467,7 +467,7 @@ func (s *GeminiMessagesCompatService) listSchedulableAccountsOnce(ctx context.Co
 
 func (s *GeminiMessagesCompatService) validateUpstreamBaseURL(raw string) (string, error) {
 	if s.cfg != nil && !s.cfg.Security.URLAllowlist.Enabled {
-		normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)
+		normalized, err := urlvalidator.ValidateURLFormat(raw, true, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)
 		if err != nil {
 			return "", fmt.Errorf("invalid base_url: %w", err)
 		}
@@ -477,6 +477,7 @@ func (s *GeminiMessagesCompatService) validateUpstreamBaseURL(raw string) (strin
 		AllowedHosts:           s.cfg.Security.URLAllowlist.UpstreamHosts,
 		RequireAllowlist:       true,
 		AllowPrivate:           s.cfg.Security.URLAllowlist.AllowPrivateHosts,
+		AllowInsecureHTTP:      true,
 		AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,
 	})
 	if err != nil {
