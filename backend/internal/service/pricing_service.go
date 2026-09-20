@@ -1117,7 +1117,6 @@ func (s *PricingService) validatePricingURL(raw string) (string, error) {
 		AllowedHosts:           s.cfg.Security.URLAllowlist.PricingHosts,
 		RequireAllowlist:       true,
 		AllowPrivate:           s.cfg.Security.URLAllowlist.AllowPrivateHosts,
-		AllowInsecureHTTP:      true,
 		AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,
 	})
 	if err != nil {

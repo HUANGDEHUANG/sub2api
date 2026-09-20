@@ -39,6 +39,17 @@
 - 断言："require.False(t, openAIStreamErrorEventShouldFailover([]byte(payload), message))"
 - 断言："TestOpenAIAPIKeyAvailability_NonStreamingPassthroughTerminal"
 
+### C-393 上游账号 HTTP 放行不得影响素材出站校验
+- 文件：backend/internal/service/account_http_policy_test.go
+- 断言："func TestAccountHTTPPolicyPreservesOtherURLRestrictions(t *testing.T)"
+- 断言："func TestAccountHTTPModelsRequestUsesConfiguredEndpoint(t *testing.T)"
+- 断言："account exception must not reach media fetches"
+
+### C-394 账号 URL 与通用下载 URL 策略分离
+- 文件：backend/internal/service/openai_gateway_request_body.go
+- 断言："urlvalidator.ValidateHTTPURL(raw, true, urlvalidator.ValidationOptions{"
+- 断言："return urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts)"
+
 ### C-392 无状态码的临时流通知允许后续完成
 - 文件：backend/internal/service/openai_gateway_response_flush_test.go
 - 断言："TestOpenAIResponseFlush_RecentBareErrorAllowsCompletedBeforeIdleTimeout"
