@@ -7,6 +7,43 @@
 
 迁移前 R3 已丢失的生图推荐卡及推荐徽章在本次功能分支中恢复，以下新增断言与交互测试保护这些入口。
 
+### C-395 DeepSeek 缓存按密钥与模型隔离且限时限量
+- 文件：backend/internal/service/deepseek_reasoning_cache.go
+- 断言："deepseek-replay-v1:%d:%x:"
+- 断言："deepSeekReplayBudget"
+- 断言："deepSeekReplayCallIdentity"
+
+### C-396 DeepSeek Responses 主入口恢复历史思考
+- 文件：backend/internal/service/openai_gateway_forward.go
+- 断言："s.restoreDeepSeekReasoning(c, account, body, replayModel, mappedReplayModel)"
+
+### C-397 DeepSeek Chat 兼容入口读写缓存
+- 文件：backend/internal/service/openai_gateway_chat_completions.go
+- 断言："s.restoreDeepSeekReasoning(c, account, responsesBody, originalModel, upstreamModel)"
+- 断言："replay.observe([]byte(payload))"
+
+### C-398 DeepSeek Messages 兼容入口读写缓存
+- 文件：backend/internal/service/openai_gateway_messages.go
+- 断言："s.restoreDeepSeekReasoning(c, account, responsesBody, originalModel, upstreamModel)"
+- 断言："replay.observe([]byte(payload))"
+
+### C-399 DeepSeek Responses 流式及聚合响应缓存
+- 文件：backend/internal/service/openai_gateway_response_handling.go
+- 断言："replay.observe(dataBytes)"
+- 断言："s.newDeepSeekReasoningCache(c, account, originalModel, mappedModel).observe(body)"
+
+### C-400 DeepSeek 自动透传响应缓存
+- 文件：backend/internal/service/openai_gateway_passthrough.go
+- 断言："replay.observe(dataBytes)"
+- 断言："s.newDeepSeekReasoningCache(c, account, originalModel, mappedModel).observe(body)"
+
+### C-401 DeepSeek 多入口工具往返与隔离回归
+- 文件：backend/internal/service/deepseek_reasoning_cache_test.go
+- 断言："TestDeepSeekReplayCacheForwardRoundTrip"
+- 断言："TestDeepSeekReplayCacheMultipleToolTurns"
+- 断言："TestDeepSeekReplayCacheRestoresHistoryAndIsolatesKeys"
+- 断言："TestDeepSeekReplayCacheUnavailableDoesNotBlockRequest"
+
 ### C-386 Chat 流内错误与换号回归
 - 文件：backend/internal/handler/ops_chat_stream_error_test.go
 - 断言："TestOpsChatStreamFailureIsNotRecovered"

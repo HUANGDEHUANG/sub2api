@@ -120,6 +120,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	wsDecision = resolveOpenAIWSDecisionByClientTransport(wsDecision, GetOpenAIClientTransport(c))
 	passthroughEnabled := account.IsOpenAIPassthroughEnabled()
 	compactPath := isOpenAIResponsesCompactPath(c)
+	// Restore against client-visible call names before namespace/tool adapters
+	// rewrite them. Response cache writers also observe restored client names.
+	if account.Type == AccountTypeAPIKey {
+		replayModel := gjson.GetBytes(body, "model").String()
+		mappedReplayModel := normalizeOpenAIModelForUpstream(account, resolveOpenAIForwardModel(account, replayModel, ""))
+		body = s.restoreDeepSeekReasoning(c, account, body, replayModel, mappedReplayModel)
+	}
 	if shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, passthroughEnabled, compactPath) {
 		body, err = flattenOpenAIResponsesNamespaces(c, body)
 		if err != nil {
