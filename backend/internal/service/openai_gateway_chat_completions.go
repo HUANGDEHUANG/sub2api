@@ -284,6 +284,8 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		}
 	}
 
+	responsesBody = s.restoreDeepSeekReasoning(c, account, responsesBody, originalModel, upstreamModel)
+
 	logFields := []zap.Field{
 		zap.Int64("account_id", account.ID),
 		zap.String("original_model", originalModel),
@@ -547,7 +549,8 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 
-	finalResponse, usage, acc, err := s.readOpenAICompatBufferedTerminal(resp, c, "openai chat_completions buffered", requestID)
+	finalResponse, usage, acc, err := s.readOpenAICompatBufferedTerminal(resp, c, "openai chat_completions buffered", requestID,
+		s.newDeepSeekReasoningCache(c, account, originalModel, upstreamModel))
 	if err != nil {
 		return nil, s.newOpenAICompatBufferedReadFailoverError(c, account, resp, requestID, err)
 	}
@@ -708,6 +711,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
 
 	state := apicompat.NewResponsesEventToChatState()
+	replay := s.newDeepSeekReasoningCache(c, account, originalModel, upstreamModel)
 	state.Model = originalModel
 	// 网关作为计费链路的一环，不能把下游 usage 输出绑定到客户端是否显式请求。
 	// raw Chat Completions 直转路径已经强制透出 usage，这里保持同样行为，避免级联代理计费为 0。
@@ -792,6 +796,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			return false
 		}
 		observer.ObserveOpenAI([]byte(payload), event.Type)
+		replay.observe([]byte(payload))
 		refusalDetector.ObservePayload([]byte(payload))
 		s.parseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
 

@@ -206,6 +206,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if err != nil {
 		return nil, fmt.Errorf("marshal responses request: %w", err)
 	}
+	responsesBody = s.restoreDeepSeekReasoning(c, account, responsesBody, originalModel, upstreamModel)
 
 	if account.UsesOpenAICodexProtocol() && account.Platform != PlatformGrok {
 		var reqBody map[string]any
@@ -593,7 +594,8 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 
-	finalResponse, usage, acc, err := s.readOpenAICompatBufferedTerminal(resp, c, "openai messages buffered", requestID)
+	finalResponse, usage, acc, err := s.readOpenAICompatBufferedTerminal(resp, c, "openai messages buffered", requestID,
+		s.newDeepSeekReasoningCache(c, account, originalModel, upstreamModel))
 	if err != nil {
 		var readErr *openAICompatBufferedReadError
 		if errors.As(err, &readErr) && readErr != nil {
@@ -765,8 +767,14 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 	c *gin.Context,
 	logPrefix string,
 	requestID string,
+	replays ...*deepSeekReasoningCache,
 ) (*apicompat.ResponsesResponse, OpenAIUsage, *apicompat.BufferedResponseAccumulator, error) {
 	acc := apicompat.NewBufferedResponseAccumulator()
+	observeReplay := func(payload string) {
+		for _, replay := range replays {
+			replay.observe([]byte(payload))
+		}
+	}
 	var usage OpenAIUsage
 	if resp == nil || resp.Body == nil {
 		return nil, usage, acc, errors.New("upstream response body is nil")
@@ -845,6 +853,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 					payload = string(restoreCodexToolNamesFromContext(c, []byte(payload)))
 					var event apicompat.ResponsesStreamEvent
 					if err := json.Unmarshal([]byte(payload), &event); err == nil {
+						observeReplay(payload)
 						s.parseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
 						acc.ProcessEvent(&event)
 						if response := openAICompatTerminalResponse(&event, []byte(payload)); isOpenAICompatResponsesTerminalEvent(event.Type) && response != nil {
@@ -895,6 +904,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 			s.parseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
 
 			acc.ProcessEvent(&event)
+			observeReplay(payload)
 
 			if response := openAICompatTerminalResponse(&event, []byte(payload)); isOpenAICompatResponsesTerminalEvent(event.Type) && response != nil {
 				if event.Usage != nil {
@@ -938,6 +948,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
 
 	state := apicompat.NewResponsesEventToAnthropicState()
+	replay := s.newDeepSeekReasoningCache(c, account, originalModel, upstreamModel)
 	state.Model = originalModel
 	var usage OpenAIUsage
 	responseID := ""
@@ -1017,6 +1028,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			return false
 		}
 		observer.ObserveOpenAI([]byte(payload), event.Type)
+		replay.observe([]byte(payload))
 		s.parseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
 
 		eventType := strings.TrimSpace(event.Type)
