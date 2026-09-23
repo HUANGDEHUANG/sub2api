@@ -124,7 +124,7 @@
 
 ### C-001 backend/cmd/server/VERSION
 - 文件：backend/cmd/server/VERSION
-- 断言："0.2.7"
+- 断言："0.2.8"
 
 
 ### C-002 backend/cmd/server/wire_gen.go
