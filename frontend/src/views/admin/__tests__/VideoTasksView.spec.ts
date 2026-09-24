@@ -72,7 +72,7 @@ describe('video task presentation safety', () => {
     const now = Date.parse('2026-09-15T03:00:00Z')
     expect(displayStatus(item(), now)).toBe('in_progress')
     expect(displayStatus(item(), now + 1)).toBe('delayed')
-    for (const status of ['query_retry', 'billing_pending', 'completed', 'failed']) {
+    for (const status of ['query_retry', 'review_required', 'billing_pending', 'completed', 'failed']) {
       expect(displayStatus(item({ display_status: status }), now + 1)).toBe(status)
     }
     expect(displayStatus(item({ kind: 'submission', task_id: '' }), now + 1)).toBe('submission_unknown')
@@ -81,7 +81,7 @@ describe('video task presentation safety', () => {
   it('translates only allowed reason codes in both languages', () => {
     expect(reasonKey('')).toBeNull()
     expect(reasonKey('https://secret.example/token?key=secret')).toBe('admin.videoTasks.reasons.unknown')
-    for (const code of ['poll_failed', 'poll_timeout', 'upstream_failed', 'upstream_expired', 'completion_save_failed', 'billing_failed', 'upstream_cancelled']) {
+    for (const code of ['poll_failed', 'poll_timeout', 'upstream_failed', 'upstream_expired', 'completion_save_failed', 'billing_failed', 'upstream_cancelled', 'poll_not_found', 'poll_exhausted', 'account_route_changed']) {
       expect(reasonKey(code)).toBe(`admin.videoTasks.reasons.${code}`)
       expect(enAdmin.videoTasks.reasons).toHaveProperty(code)
       expect(zhAdmin.videoTasks.reasons).toHaveProperty(code)

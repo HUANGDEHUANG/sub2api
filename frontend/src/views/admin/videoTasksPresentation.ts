@@ -12,14 +12,15 @@ export function displayStatus(item: VideoTaskAdminItem, now = Date.now()): Video
 export function statusBadge(status: string): string {
   if (status === 'completed' || status === 'charged') return 'badge-success'
   if (status === 'failed') return 'badge-danger'
-  if (['delayed', 'query_retry', 'billing_pending', 'submission_unknown', 'pending', 'review'].includes(status)) return 'badge-warning'
+  if (['delayed', 'query_retry', 'billing_pending', 'submission_unknown', 'review_required', 'pending', 'review'].includes(status)) return 'badge-warning'
   return status === 'in_progress' ? 'badge-primary' : 'badge-gray'
 }
 
 // Never render unrecognized backend codes or upstream error messages.
 const safeReasons = new Set([
   'poll_failed', 'poll_timeout', 'upstream_failed', 'upstream_expired',
-  'completion_save_failed', 'billing_failed', 'upstream_cancelled'
+  'completion_save_failed', 'billing_failed', 'upstream_cancelled',
+  'poll_not_found', 'poll_exhausted', 'account_route_changed'
 ])
 export function reasonKey(code: string): string | null {
   if (!code) return null

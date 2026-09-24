@@ -45,12 +45,21 @@ func (s *OpenAIGatewayService) StartVideoTaskWorker(apiKeyService *APIKeyService
 		return
 	}
 	p := &videoTaskProcessor{repo: repo, poll: s.pollDurableVideoTask, bill: func(ctx context.Context, t *VideoTask) error { return s.billDurableVideoTask(ctx, t, apiKeyService) }}
+	var monitor *videoTaskMonitor
+	if monitorRepo, ok := s.usageBillingRepo.(VideoTaskMonitorRepository); ok {
+		monitor = &videoTaskMonitor{repo: monitorRepo, poll: s.pollVideoTaskMonitor}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.videoTaskProcessor = p
 	s.videoTaskCancel = cancel
 	s.videoTaskDone = make(chan struct{})
 	go func() {
 		defer close(s.videoTaskDone)
+		if monitor != nil {
+			monitorDone := make(chan struct{})
+			go func() { defer close(monitorDone); monitor.run(ctx) }()
+			defer func() { <-monitorDone }()
+		}
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -138,6 +147,9 @@ func (s *OpenAIGatewayService) ReconcileOwnedVideoTask(ctx context.Context, task
 }
 
 func (p *videoTaskProcessor) process(parent context.Context, t *VideoTask) error {
+	if t.Pending.TrackingOnly {
+		return errors.New("tracking-only video tasks cannot enter settlement")
+	}
 	ctx, cancel := context.WithTimeout(parent, videoTaskAttemptTimeout)
 	defer cancel()
 	if t.State == VideoTaskCompleted || t.State == VideoTaskFailed {
@@ -183,6 +195,9 @@ func (p *videoTaskProcessor) retry(t *VideoTask, code string, cause error) error
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	delay := videoTaskPollInterval * time.Duration(1<<min(max(t.Attempts-1, 0), 4))
+	if !errors.Is(cause, context.Canceled) && (code == "poll_failed" || code == "poll_timeout" || code == "upstream_expired") && videoTaskPollingExhausted(t, time.Now()) {
+		code = "poll_exhausted"
+	}
 	err := p.repo.FinishVideoTaskAttempt(ctx, t, t.State, delay, code)
 	return errors.Join(cause, err)
 }

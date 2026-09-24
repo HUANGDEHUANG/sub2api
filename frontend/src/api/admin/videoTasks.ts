@@ -3,7 +3,7 @@ import type { PaginatedResponse } from '@/types'
 
 export const videoTaskStatuses = [
   'in_progress', 'delayed', 'query_retry', 'billing_pending',
-  'completed', 'failed', 'submission_unknown'
+  'completed', 'failed', 'submission_unknown', 'review_required'
 ] as const
 
 export type VideoTaskStatus = typeof videoTaskStatuses[number]

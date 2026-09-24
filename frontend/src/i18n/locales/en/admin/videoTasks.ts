@@ -2,8 +2,8 @@ export default {
   videoTasks: {
     title: 'Video Tasks',
     description: 'Read-only task progress, failures and billing status',
-    coverage: 'Only newly persisted tasks and unresolved idempotent submissions are included. Historical tasks are not backfilled; legacy usage records remain on the Usage page.',
-    billingNote: 'Site charges apply only after completion; there is no precharge. Failed, uncharged tasks require no refund. Expected cost is an estimate, not a charge. These are site charges and do not represent upstream costs.',
+    coverage: 'Recorded video tasks are checked automatically. Unknown submissions require upstream review and are never automatically resubmitted.',
+    billingNote: 'Charges are synchronized with usage records. This page monitors progress only and never charges or retroactively bills a task. Expected cost is not a recorded charge.',
     elapsed: '{hours}h {minutes}m {seconds}s',
     search: 'Search',
     searchPlaceholder: 'Task / model / user / account (literal text)',
@@ -29,7 +29,7 @@ export default {
     statuses: {
       in_progress: 'In progress', delayed: 'Delayed', query_retry: 'Status check retry',
       billing_pending: 'Billing pending', completed: 'Completed', failed: 'Failed',
-      submission_unknown: 'Submission result unknown', unknown: 'Unknown status'
+      submission_unknown: 'Submission result unknown', review_required: 'Needs review', unknown: 'Unknown status'
     },
     explanations: {
       in_progress: 'The task is still processing.',
@@ -39,11 +39,15 @@ export default {
       completed: 'Task processing is complete.',
       failed: 'The upstream task ended unsuccessfully. If it was not charged, no refund is needed.',
       submission_unknown: 'Submission may still be in progress or its result is unknown. Do not submit again with a new idempotency key; a duplicate video could be created. Site billing needs review; upstream costs may already have been incurred.',
+      review_required: 'Automatic checks are paused pending upstream review. This does not mean generation failed and will not recreate the video or trigger a charge.',
       unknown: 'No recognized task status is available.'
     },
     billing: { not_charged: 'Not charged', pending: 'Pending settlement', charged: 'Charged', review: 'Needs review', unknown: 'Unknown billing status' },
     reasons: {
       poll_failed: 'The latest status check failed. The system will check again.',
+      poll_not_found: 'The upstream could not find the task. Checks will retry within a bounded period without recreating the video.',
+      poll_exhausted: 'The task is over a day old and repeated checks could not confirm its outcome. Automatic checks have stopped.',
+      account_route_changed: 'The original upstream account or route changed. Checks are paused to avoid associating the wrong result.',
       poll_timeout: 'The status check timed out. This does not confirm a task failure; the system will check again.',
       upstream_failed: 'The upstream service reported that the task failed.',
       upstream_expired: 'The upstream service reported an expired result. Generation and billing outcomes still need review; the video will not be generated again.',

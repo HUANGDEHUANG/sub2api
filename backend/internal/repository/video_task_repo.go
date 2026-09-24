@@ -143,7 +143,8 @@ func (r *usageBillingRepository) FinishVideoTaskAttempt(ctx context.Context, t *
 	if state != service.VideoTaskPending && state != service.VideoTaskReady && state != service.VideoTaskCompleted && state != service.VideoTaskFailed {
 		return errors.New("invalid video task state")
 	}
-	result, err := r.db.ExecContext(ctx, `UPDATE video_tasks SET state=$5,next_attempt_at=NOW()+$6*INTERVAL '1 millisecond',
+	result, err := r.db.ExecContext(ctx, `UPDATE video_tasks SET state=$5,next_attempt_at=CASE WHEN $7='poll_exhausted'
+		THEN '9999-12-31 00:00:00+00'::timestamptz ELSE NOW()+$6*INTERVAL '1 millisecond' END,
 		last_error=$7,lease_token=NULL,lease_until=NULL,updated_at=NOW(),
 		completed_at=CASE WHEN $5 IN ('completed','failed') THEN NOW() ELSE completed_at END
 		WHERE task_id=$1 AND user_id=$2 AND api_key_id=$3 AND lease_token=$4
