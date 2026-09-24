@@ -104,6 +104,7 @@ func (r *usageBillingRepository) claimVideoTask(ctx context.Context, taskID stri
 	return scanVideoTask(r.db.QueryRowContext(ctx, `WITH due AS (
 		SELECT task_id, user_id, api_key_id FROM video_tasks
 		WHERE state IN ('pending','ready') AND next_attempt_at <= NOW()
+		  AND COALESCE(pending->>'tracking_only','false') <> 'true'
 		  AND (lease_until IS NULL OR lease_until <= NOW())
 		  AND ($1 = '' OR (task_id=$1 AND user_id=$2 AND api_key_id=$3))
 		ORDER BY next_attempt_at, created_at

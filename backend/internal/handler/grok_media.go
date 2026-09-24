@@ -429,55 +429,59 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		service.SetOpsLatencyMs(c, service.OpsRoutingLatencyMsKey, time.Since(routingStart).Milliseconds())
 		forwardStart := time.Now()
 		writerSizeBeforeForward := c.Writer.Size()
-		result, err := func() (*service.OpenAIForwardResult, error) {
-			defer releaseAccount()
-			if endpoint.IsSeedance() {
-				return h.gatewayService.ForwardSeedance(requestCtx, c, account, endpoint, requestID, body)
-			}
-			if account.Platform == service.PlatformOpenAI && isGrokVideoCreateEndpoint(endpoint) {
-				var quote *service.VideoTaskCostSnapshot
-				return h.gatewayService.ForwardOpenAIVideoCreate(requestCtx, c, account, body, contentType,
-					func(created *service.OpenAIForwardResult) error {
-						pending := service.GrokVideoPendingBilling{Platform: account.Platform,
-							Model: requestModel, BillingModel: firstNonEmptyString(created.BillingModel, requestModel),
-							UpstreamModel: created.UpstreamModel, VideoResolution: created.VideoResolution,
-							VideoDurationSeconds: created.VideoDurationSeconds,
-							OriginalModel:        clientRequestedModel(c, requestModel), CreatedAt: videoCreateStartedAt,
-						}
-						// Acceptance may outlive the client connection. Persist and
-						// complete local idempotency before publishing success.
-						saveCtx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), 15*time.Second)
-						defer cancel()
-						if err := h.gatewayService.PersistOpenAIVideoTask(saveCtx, created.ResponseID, apiKey, account, subscription, pending, quote); err != nil {
+		result, err := forwardRecordedVideo(c, h.gatewayService, endpoint, apiKey, account, subscription,
+			service.GrokVideoPendingBilling{Platform: account.Platform, Model: requestModel, BillingModel: requestModel,
+				OriginalModel: clientRequestedModel(c, requestModel), VideoResolution: requestInfo.Resolution,
+				VideoDurationSeconds: requestInfo.DurationSeconds, CreatedAt: videoCreateStartedAt}, requestID,
+			func() (*service.OpenAIForwardResult, error) {
+				defer releaseAccount()
+				if endpoint.IsSeedance() {
+					return h.gatewayService.ForwardSeedance(requestCtx, c, account, endpoint, requestID, body)
+				}
+				if account.Platform == service.PlatformOpenAI && isGrokVideoCreateEndpoint(endpoint) {
+					var quote *service.VideoTaskCostSnapshot
+					return h.gatewayService.ForwardOpenAIVideoCreate(requestCtx, c, account, body, contentType,
+						func(created *service.OpenAIForwardResult) error {
+							pending := service.GrokVideoPendingBilling{Platform: account.Platform,
+								Model: requestModel, BillingModel: firstNonEmptyString(created.BillingModel, requestModel),
+								UpstreamModel: created.UpstreamModel, VideoResolution: created.VideoResolution,
+								VideoDurationSeconds: created.VideoDurationSeconds,
+								OriginalModel:        clientRequestedModel(c, requestModel), CreatedAt: videoCreateStartedAt,
+							}
+							// Acceptance may outlive the client connection. Persist and
+							// complete local idempotency before publishing success.
+							saveCtx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), 15*time.Second)
+							defer cancel()
+							if err := h.gatewayService.PersistOpenAIVideoTask(saveCtx, created.ResponseID, apiKey, account, subscription, pending, quote); err != nil {
+								return err
+							}
+							if err := h.gatewayService.CompleteVideoSubmission(saveCtx, apiKey.ID, c.GetHeader("Idempotency-Key"), created.ResponseID); err != nil {
+								return err
+							}
+							if err := persistOpenAIVideoTask(saveCtx, h.gatewayService, apiKey.GroupID,
+								created.ResponseID, subject.UserID, apiKey.ID, account.ID, pending); err != nil {
+								reqLog.Warn("openai_video.cache_save_failed", zap.String("task_id", created.ResponseID))
+							}
+							return nil
+						}, func(normalized *service.OpenAIForwardResult) error {
+							pricingAt, err := time.Parse(time.RFC3339Nano, videoCreateStartedAt)
+							if err != nil {
+								return err
+							}
+							quote, err = h.gatewayService.ResolveVideoTaskCost(requestCtx, &service.OpenAIRecordUsageInput{
+								RequireAtomicVideo: true, Result: normalized,
+								APIKey: apiKey, User: apiKey.User, Account: account, Subscription: subscription,
+								APIKeyService: h.apiKeyService, PricingAt: pricingAt, QuotaPlatform: service.PlatformOpenAI,
+								InboundEndpoint: "/v1/videos", UpstreamEndpoint: normalized.UpstreamEndpoint,
+								ChannelUsageFields: service.ChannelUsageFields{
+									OriginalModel: clientRequestedModel(c, requestModel), ChannelMappedModel: requestModel,
+								},
+							})
 							return err
-						}
-						if err := h.gatewayService.CompleteVideoSubmission(saveCtx, apiKey.ID, c.GetHeader("Idempotency-Key"), created.ResponseID); err != nil {
-							return err
-						}
-						if err := persistOpenAIVideoTask(saveCtx, h.gatewayService, apiKey.GroupID,
-							created.ResponseID, subject.UserID, apiKey.ID, account.ID, pending); err != nil {
-							reqLog.Warn("openai_video.cache_save_failed", zap.String("task_id", created.ResponseID))
-						}
-						return nil
-					}, func(normalized *service.OpenAIForwardResult) error {
-						pricingAt, err := time.Parse(time.RFC3339Nano, videoCreateStartedAt)
-						if err != nil {
-							return err
-						}
-						quote, err = h.gatewayService.ResolveVideoTaskCost(requestCtx, &service.OpenAIRecordUsageInput{
-							RequireAtomicVideo: true, Result: normalized,
-							APIKey: apiKey, User: apiKey.User, Account: account, Subscription: subscription,
-							APIKeyService: h.apiKeyService, PricingAt: pricingAt, QuotaPlatform: service.PlatformOpenAI,
-							InboundEndpoint: "/v1/videos", UpstreamEndpoint: normalized.UpstreamEndpoint,
-							ChannelUsageFields: service.ChannelUsageFields{
-								OriginalModel: clientRequestedModel(c, requestModel), ChannelMappedModel: requestModel,
-							},
 						})
-						return err
-					})
-			}
-			return h.gatewayService.ForwardGrokMedia(requestCtx, c, account, endpoint, requestID, body, contentType)
-		}()
+				}
+				return h.gatewayService.ForwardGrokMedia(requestCtx, c, account, endpoint, requestID, body, contentType)
+			})
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)

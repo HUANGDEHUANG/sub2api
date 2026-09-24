@@ -95,7 +95,13 @@ func TestVideoTaskCost_FrozenAmountsSurviveAllLivePolicyChanges(t *testing.T) {
 			first := *billing.lastCmd
 			first.VideoUsageLog = nil
 
-			price, accountRate = 999, 999
+			// RecordUsage may still notify quota observers with the old account.
+			// A configuration reload supplies a fresh object, not an in-place write.
+			nextAccount := *input.Account
+			input.Account = &nextAccount
+			price = 999
+			nextAccountRate := 999.0
+			input.Account.RateMultiplier = &nextAccountRate
 			input.APIKey.Group.RateMultiplier = 999
 			input.APIKey.Group.VideoRateMultiplier = 999
 			input.APIKey.Group.SubscriptionType = "changed-after-acceptance"
