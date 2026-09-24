@@ -42,7 +42,7 @@ func (s *OpenAIGatewayService) BeginVideoTaskRecord(ctx context.Context, key *AP
 	}
 	t := &VideoTask{TaskID: "submission:" + uuid.NewString(), UserID: key.UserID, APIKeyID: key.ID,
 		GroupID: copyVideoID(key.GroupID), AccountID: account.ID, Pending: pending,
-		RoutingFingerprint: videoTaskRoutingFingerprint(account)}
+		RoutingFingerprint: videoTaskMonitorRoutingFingerprint(account)}
 	if subscription != nil {
 		t.SubscriptionID = copyVideoID(&subscription.ID)
 	}

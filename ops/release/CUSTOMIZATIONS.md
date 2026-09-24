@@ -52,6 +52,29 @@
 - 文件：backend/internal/handler/grok_media.go
 - 断言："forwardRecordedVideo(c, h.gatewayService, endpoint"
 
+### C-405 视频监控只查状态与使用记录，不发起扣费
+- 文件：backend/internal/service/video_task_monitor.go
+- 断言："SyncVideoTaskMonitorUsage"
+- 断言："pollVideoTaskMonitor"
+- 断言："videoTaskMonitorRoutingFingerprint"
+
+### C-406 视频监控租约与完整归属使用记录同步
+- 文件：backend/internal/repository/video_task_monitor_repo.go
+- 断言："FOR UPDATE SKIP LOCKED"
+- 断言："AND l.user_id=t.user_id AND l.api_key_id=t.api_key_id AND l.account_id=t.account_id"
+- 断言："AND pending->>'tracking_only'='true'"
+
+### C-407 视频监控隔离扣费及旧任务有限查询回归
+- 文件：backend/internal/service/video_task_monitor_test.go
+- 断言："TestVideoMonitorOnlyObservesAndReusesExistingUsage"
+- 断言："TestVideoMonitorDoesNotPollUnknownSubmissionsOrDurableBillingTasks"
+- 断言："TestVideoTaskOldPollFailuresPauseWithoutChangingBillingRetries"
+
+### C-408 视频待核对状态与只读费用说明
+- 文件：frontend/src/i18n/locales/zh/admin/videoTasks.ts
+- 断言："不会发起扣费或补扣"
+- 断言："review_required"
+
 ### C-401 DeepSeek 多入口工具往返与隔离回归
 - 文件：backend/internal/service/deepseek_reasoning_cache_test.go
 - 断言："TestDeepSeekReplayCacheForwardRoundTrip"
@@ -2493,7 +2516,7 @@
 
 ### C-355 frontend/src/views/admin/__tests__/VideoTasksView.spec.ts
 - 文件：frontend/src/views/admin/__tests__/VideoTasksView.spec.ts
-- 断言："for (const code of ['poll_failed', 'poll_timeout', 'upstream_failed', 'upstream_expired', 'completion_save_failed', 'billing_failed', 'upstream_cancelled']) {"
+- 断言："for (const code of ['poll_failed', 'poll_timeout', 'upstream_failed', 'upstream_expired', 'completion_save_failed', 'billing_failed', 'upstream_cancelled', 'poll_not_found', 'poll_exhausted', 'account_route_changed']) {"
 - 断言："expect(select('video-task-page-size').props('options').map((option: { value: number }) => option.value)).toEqual([20, 50, 100])"
 - 断言："...({ prompt: 'PRIVATE PROMPT', url: 'https://private.invalid/video', api_key: 'PRIVATE TOKEN' } as object)"
 

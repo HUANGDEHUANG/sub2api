@@ -128,7 +128,7 @@ func TestVideoTaskRepositoryReadyRetryPreservesCompletion(t *testing.T) {
 	r := &usageBillingRepository{db: db}
 	task := videoTaskRepoFixture()
 	task.State = service.VideoTaskReady
-	mock.ExpectExec(`(?s)UPDATE video_tasks SET state=\$5,next_attempt_at=NOW\(\)\+\$6\*INTERVAL '1 millisecond',\s*last_error=\$7,lease_token=NULL,lease_until=NULL.*AND \(state='pending' OR \$5 IN \('ready','completed'\)\)`).WithArgs(task.TaskID, task.UserID, task.APIKeyID, task.LeaseToken, service.VideoTaskReady, int64(15000), "billing_failed").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`(?s)UPDATE video_tasks SET state=\$5,next_attempt_at=CASE.*ELSE NOW\(\)\+\$6\*INTERVAL '1 millisecond' END,\s*last_error=\$7,lease_token=NULL,lease_until=NULL.*AND \(state='pending' OR \$5 IN \('ready','completed'\)\)`).WithArgs(task.TaskID, task.UserID, task.APIKeyID, task.LeaseToken, service.VideoTaskReady, int64(15000), "billing_failed").WillReturnResult(sqlmock.NewResult(0, 1))
 	require.NoError(t, r.FinishVideoTaskAttempt(context.Background(), task, service.VideoTaskReady, 15*time.Second, "billing_failed"))
 	require.NoError(t, mock.ExpectationsWereMet())
 }

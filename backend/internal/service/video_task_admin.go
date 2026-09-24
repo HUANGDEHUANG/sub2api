@@ -33,7 +33,7 @@ func (f VideoTaskAdminFilter) Validate() error {
 		return errors.New("days must be 1, 7 or 30")
 	}
 	switch f.Status {
-	case "", "in_progress", "delayed", "query_retry", "billing_pending", "completed", "failed", "submission_unknown":
+	case "", "in_progress", "delayed", "query_retry", "billing_pending", "completed", "failed", "submission_unknown", "review_required":
 		return nil
 	default:
 		return errors.New("invalid video task status")

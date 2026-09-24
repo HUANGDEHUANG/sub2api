@@ -20,17 +20,20 @@ const videoTaskAdminQuery = `WITH source AS (
 		t.account_id, t.group_id,
 		COALESCE(NULLIF(t.pending->>'original_model',''), t.pending->>'model','') AS model,
 		t.state, t.created_at, t.updated_at, t.completed_at,
-		CASE WHEN t.state IN ('pending','ready') AND COALESCE(t.pending->>'tracking_only','false')<>'true' THEN t.next_attempt_at END AS next_attempt_at,
+		CASE WHEN t.last_error IN ('submission_unknown','poll_exhausted','account_route_changed') THEN NULL
+			WHEN t.state='pending' AND t.pending->>'tracking_only'='true' THEN ` + videoTaskMonitorDueSQL + `
+			WHEN t.state IN ('pending','ready') THEN t.next_attempt_at END AS next_attempt_at,
 		t.attempts,
 		CASE WHEN t.state='completed' THEN 'completed'
 			WHEN t.state='failed' THEN 'failed'
 			WHEN t.state='ready' THEN 'billing_pending'
 			WHEN t.last_error='submission_unknown' THEN 'submission_unknown'
+			WHEN t.last_error IN ('poll_exhausted','account_route_changed') THEN 'review_required'
 			WHEN t.last_error<>'' THEN 'query_retry'
 			WHEN t.created_at < NOW()-INTERVAL '2 hours' THEN 'delayed'
 			ELSE 'in_progress' END AS display_status,
 		CASE WHEN t.last_error IN ('poll_failed','poll_timeout','upstream_failed','upstream_cancelled','upstream_expired',
-			'completion_save_failed','billing_failed')
+			'completion_save_failed','billing_failed','poll_not_found','poll_exhausted','account_route_changed')
 			THEN t.last_error ELSE '' END AS reason_code,
 		''::text AS sort_key
 	FROM video_tasks t
