@@ -127,6 +127,8 @@ func allowDurableOpenAIVideoForward(c *gin.Context, lookup durableOpenAIVideoLoo
 	// Only known codes influence public reporting; never copy stored or upstream
 	// error text into a response. Retain the diagnostic while a retry is backoff-bound.
 	switch latest.LastError {
+	case "poll_exhausted":
+		return progress("outcome_unknown", "Automatic checks are paused after repeated inconclusive lookups. This task needs upstream review; an explicit lookup can check again after four minutes", "video_outcome_unknown", http.StatusServiceUnavailable)
 	case "poll_timeout":
 		return progress("poll_timeout", "Video status lookup timed out; generation outcome is not yet confirmed. Retry this lookup later", "video_poll_timeout", http.StatusServiceUnavailable)
 	case "poll_failed":

@@ -159,6 +159,7 @@ func TestDurableVideoPublicStatusAndBillingGuard(t *testing.T) {
 		{name: "timeout backoff", state: service.VideoTaskPending, lastError: "poll_timeout", err: service.ErrVideoTaskBusy, detail: "poll_timeout", code: "video_poll_timeout", status: 200},
 		{name: "temporary lookup failure", state: service.VideoTaskPending, lastError: "poll_failed", err: errors.New("private prompt https://secret.example"), detail: "poll_unavailable", code: "video_poll_unavailable", status: 200},
 		{name: "expired backoff", state: service.VideoTaskPending, lastError: "upstream_expired", err: service.ErrVideoTaskBusy, detail: "outcome_unknown", code: "video_outcome_unknown", status: 200},
+		{name: "paused automatic checks", state: service.VideoTaskPending, lastError: "poll_exhausted", err: service.ErrVideoTaskBusy, detail: "outcome_unknown", code: "video_outcome_unknown", status: 200},
 		{name: "ready", state: service.VideoTaskReady, detail: "settlement_pending", code: "video_settlement_pending", status: 200},
 		{name: "ready busy", state: service.VideoTaskReady, err: service.ErrVideoTaskBusy, detail: "settlement_pending", code: "video_settlement_pending", status: 200},
 		{name: "billing error", state: service.VideoTaskReady, lastError: "billing_failed", err: errors.New("private billing data"), detail: "settlement_pending", code: "video_settlement_pending", status: 200},

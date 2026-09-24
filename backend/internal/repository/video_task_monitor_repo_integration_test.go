@@ -128,4 +128,20 @@ func TestVideoMonitorExhaustedDurableQueryIsNotClaimedByOldWorkers(t *testing.T)
 	var eligible bool
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT state IN ('pending','ready') AND next_attempt_at<=NOW() FROM video_tasks WHERE task_id=$1`, task.TaskID).Scan(&eligible))
 	require.False(t, eligible)
+	// Stop background retries, but retain bounded explicit client lookups so a
+	// recovered upstream can still return the original task through its old flow.
+	_, err = integrationDB.ExecContext(ctx, `UPDATE video_tasks SET updated_at=NOW()-INTERVAL '5 minutes' WHERE task_id=$1`, task.TaskID)
+	require.NoError(t, err)
+	background, err := r.ClaimDueVideoTask(ctx, time.Minute)
+	require.NoError(t, err)
+	if background != nil {
+		require.NotEqual(t, task.TaskID, background.TaskID)
+	}
+	owned, err := r.ClaimOwnedVideoTask(ctx, task.TaskID, 1, 2, time.Minute)
+	require.NoError(t, err)
+	require.NotNil(t, owned)
+	require.Equal(t, task.TaskID, owned.TaskID)
+	concurrent, err := r.ClaimOwnedVideoTask(ctx, task.TaskID, 1, 2, time.Minute)
+	require.NoError(t, err)
+	require.Nil(t, concurrent)
 }

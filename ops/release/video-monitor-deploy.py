@@ -14,17 +14,17 @@ import tempfile
 import time
 import urllib.request
 
-ROOT = Path('/home/serveradmin/releases/buaga-video-monitor-20260924')
+ROOT = Path('/home/serveradmin/releases/buaga-video-monitor-r2-20260924')
 MANIFEST = Path('/home/serveradmin/releases/buaga-current.json')
 CONF = Path('/etc/nginx/conf.d/sub2api-global.conf')
 OLD = 'sub2api-custom-video-records-20260924'
 OLD_ID = 'sha256:3118062f4ca2995705820d4e975e285cbb912c62f710eb7a85efe4724ffd6c7d'
-NEW = 'sub2api-custom-video-monitor-20260924'
-IMAGE = 'sub2api:custom-video-monitor-20260924'
+NEW = 'sub2api-custom-video-monitor-r2-20260924'
+IMAGE = 'sub2api:custom-video-monitor-r2-20260924'
 PORT = 18197
 ARCHIVE = Path(str(ROOT) + '.tar.gz')
 META = Path(str(ARCHIVE) + '.json')
-TOOLS = '/home/serveradmin/releases/buaga-video-monitor-20260924/source/ops/release'
+TOOLS = '/home/serveradmin/releases/buaga-video-monitor-r2-20260924/source/ops/release'
 
 class Connection(http.client.HTTPConnection):
     def connect(self):
@@ -58,7 +58,7 @@ def record(name, data):
 
 def image():
     info = json.loads(META.read_text())
-    assert info['source_git_tag'] == 'rel/buaga-video-monitor-20260924'
+    assert info['source_git_tag'] == 'rel/buaga-video-monitor-r2-20260924'
     assert info['source_archive_sha256'] == hashlib.sha256(ARCHIVE.read_bytes()).hexdigest()
     result = docker('GET', '/images/' + IMAGE + '/json')
     assert result['Config']['Labels']['buaga.source.commit'] == info['source_git_commit']
@@ -172,7 +172,7 @@ def switch():
     tests = json.loads((ROOT / 'tests-verified.json').read_text())
     assert tests['passed'] and tests['source_git_commit'] == json.loads(META.read_text())['source_git_commit']
     assert tests['isolated_video_integration']
-    assert tests['customization_guard_count'] == 408 and tests['backend_full_unit'] and tests['focused_race'] and tests['frontend_tests'] == 2547
+    assert tests['customization_guard_count'] == 409 and tests['backend_full_unit'] and tests['focused_race'] and tests['frontend_tests'] == 2547
     assetproof = json.loads((ROOT / 'assets-verified.json').read_text())
     assert assetproof['passed'] and assetproof['image_id'] == proof['image_id']
     assert origin('/assets/' + proof['frontend_entry']) == (ROOT / 'frontend/assets' / proof['frontend_entry']).read_bytes()
@@ -209,7 +209,7 @@ def switch():
     info = json.loads(META.read_text())
     current = copy.deepcopy(prior)
     current.update(info)
-    current.update({'version': '0.2.8', 'release': 'buaga-video-monitor-20260924', 'image': IMAGE,
+    current.update({'version': '0.2.8', 'release': 'buaga-video-monitor-r2-20260924', 'image': IMAGE,
                     'image_id': proof['image_id'], 'container': NEW, 'upstream': '127.0.0.1:18197',
                     'binary_sha256': run('docker', 'exec', NEW, 'sha256sum', '/app/sub2api').split()[0],
                     'remote_source': str(ROOT / 'source'), 'release_directory': str(ROOT),
@@ -222,7 +222,7 @@ def switch():
                     'frontend_index_sha256': hashlib.sha256((ROOT / 'frontend/index.html').read_bytes()).hexdigest(),
                     'verification': {**proof, 'backend_full_unit': True, 'backend_test_platform': 'darwin/arm64',
                                      'frontend_tests': tests['frontend_tests'], 'frontend_files': tests['frontend_files'], 'frontend_build': True,
-                                     'frontend_full_lint': True, 'customization_guard_count': 408,
+                                     'frontend_full_lint': True, 'customization_guard_count': 409,
                                      'server_image_build': True, 'old_requests_preserved': True,
                                      'production_browser_verified': False, 'price_monitor_bound_to_current_app': False},
                     'rollback': {'container': OLD, 'image_id': OLD_ID, 'upstream': '127.0.0.1:18196',
@@ -240,7 +240,7 @@ def switch():
 def monitor_check():
     code = """import os,json,urllib.request
 base=os.environ['SUB2API_API_BASE_URL']
-assert base=='http://sub2api-custom-video-monitor-20260924:8080'
+assert base=='http://sub2api-custom-video-monitor-r2-20260924:8080'
 key=os.environ['SUB2API_ADMIN_API_KEY']
 for path in ['/health','/api/v1/admin/accounts?page=1&page_size=1']:
  r=urllib.request.urlopen(urllib.request.Request(base+path,headers={'x-api-key':key}),timeout=20)
@@ -256,7 +256,7 @@ print('Monitor health and authenticated admin read passed')
 def rebind_monitor():
     assert json.loads(MANIFEST.read_text())['container'] == NEW
     name = 'sub2api-price-monitor'
-    backup = name + '-before-video-monitor-20260924'
+    backup = name + '-before-video-monitor-r2-20260924'
     original = docker('GET', '/containers/' + name + '/json')
     env = dict(x.split('=', 1) for x in original['Config']['Env'])
     expected, updated = 'http://' + OLD + ':8080', 'http://' + NEW + ':8080'
