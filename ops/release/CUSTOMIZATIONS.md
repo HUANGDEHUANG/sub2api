@@ -75,6 +75,10 @@
 - 断言："不会发起扣费或补扣"
 - 断言："review_required"
 
+### C-409 停止后台重试但保留原归属客户端限频复查
+- 文件：backend/internal/repository/video_task_repo.go
+- 断言："OR ($1<>'' AND last_error='poll_exhausted' AND updated_at<=NOW()-INTERVAL '4 minutes')"
+
 ### C-401 DeepSeek 多入口工具往返与隔离回归
 - 文件：backend/internal/service/deepseek_reasoning_cache_test.go
 - 断言："TestDeepSeekReplayCacheForwardRoundTrip"

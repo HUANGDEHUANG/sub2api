@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-ROOT = Path('/home/serveradmin/releases/buaga-video-monitor-20260924')
+ROOT = Path('/home/serveradmin/releases/buaga-video-monitor-r2-20260924')
 TASKS = ['c2c0dca2-a457-952e-b9b9-b8cf7379550c', '73109262-c525-9863-a57d-c3c5b458f1cd',
          '60cddfb4-8ee5-9f56-98bc-aa27e51aa610', 'bf9d2295-b274-95f3-af38-030233647b3d']
 IDS = ','.join("'" + x + "'" for x in TASKS)

@@ -103,7 +103,8 @@ func (r *usageBillingRepository) claimVideoTask(ctx context.Context, taskID stri
 	// An expired lease can be reclaimed after a process crash, without a restart.
 	return scanVideoTask(r.db.QueryRowContext(ctx, `WITH due AS (
 		SELECT task_id, user_id, api_key_id FROM video_tasks
-		WHERE state IN ('pending','ready') AND next_attempt_at <= NOW()
+		WHERE state IN ('pending','ready') AND (next_attempt_at <= NOW()
+		  OR ($1<>'' AND last_error='poll_exhausted' AND updated_at<=NOW()-INTERVAL '4 minutes'))
 		  AND COALESCE(pending->>'tracking_only','false') <> 'true'
 		  AND (lease_until IS NULL OR lease_until <= NOW())
 		  AND ($1 = '' OR (task_id=$1 AND user_id=$2 AND api_key_id=$3))

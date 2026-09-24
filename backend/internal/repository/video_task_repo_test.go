@@ -89,7 +89,7 @@ func TestVideoTaskRepositoryClaimUsesDueLeaseAndOwnerFence(t *testing.T) {
 			defer db.Close()
 			r := &usageBillingRepository{db: db}
 			task := videoTaskRepoFixture()
-			query := `(?s)WITH due AS .*state IN \('pending','ready'\) AND next_attempt_at <= NOW\(\).*lease_until IS NULL OR lease_until <= NOW\(\).*task_id=\$1 AND user_id=\$2 AND api_key_id=\$3.*LIMIT 1 FOR UPDATE SKIP LOCKED.*UPDATE video_tasks t SET lease_token=\$4.*attempts=t.attempts\+1.*t.task_id=due.task_id AND t.user_id=due.user_id AND t.api_key_id=due.api_key_id.*RETURNING`
+			query := `(?s)WITH due AS .*state IN \('pending','ready'\) AND \(next_attempt_at <= NOW\(\).*lease_until IS NULL OR lease_until <= NOW\(\).*task_id=\$1 AND user_id=\$2 AND api_key_id=\$3.*LIMIT 1 FOR UPDATE SKIP LOCKED.*UPDATE video_tasks t SET lease_token=\$4.*attempts=t.attempts\+1.*t.task_id=due.task_id AND t.user_id=due.user_id AND t.api_key_id=due.api_key_id.*RETURNING`
 			id, user, key := "", int64(0), int64(0)
 			if owned {
 				id, user, key = task.TaskID, task.UserID, task.APIKeyID
