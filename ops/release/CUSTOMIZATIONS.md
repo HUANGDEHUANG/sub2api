@@ -37,6 +37,21 @@
 - 断言："replay.observe(dataBytes)"
 - 断言："s.newDeepSeekReasoningCache(c, account, originalModel, mappedModel).observe(body)"
 
+### C-402 所有视频入口提交前留记录及成功响应前落库
+- 文件：backend/internal/handler/video_task_record.go
+- 断言："recorder.BeginVideoTaskRecord"
+- 断言："recorder.AcceptVideoTaskRecord"
+- 断言："recorder.ObserveVideoTaskRecord"
+
+### C-403 视频任务记录与原有结算隔离
+- 文件：backend/internal/repository/video_task_record_repo.go
+- 断言："9999-12-31 00:00:00+00"
+- 断言："pending->>'tracking_only'='true'"
+
+### C-404 视频创建编辑延长及原生协议统一记录
+- 文件：backend/internal/handler/grok_media.go
+- 断言："forwardRecordedVideo(c, h.gatewayService, endpoint"
+
 ### C-401 DeepSeek 多入口工具往返与隔离回归
 - 文件：backend/internal/service/deepseek_reasoning_cache_test.go
 - 断言："TestDeepSeekReplayCacheForwardRoundTrip"

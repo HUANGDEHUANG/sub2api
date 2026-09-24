@@ -25,8 +25,8 @@ const (
 )
 
 // VideoTask contains only task identity and billing metadata, never credentials,
-// prompts, response headers, or signed download URLs. Only new OpenAI tasks enter
-// this repository; legacy Grok tasks retain their existing lifecycle.
+// prompts, response headers, or signed download URLs. TrackingOnly records share
+// the task list while retaining their provider's existing billing lifecycle.
 type VideoTask struct {
 	TaskID             string
 	UserID             int64
@@ -165,7 +165,12 @@ func (s *OpenAIGatewayService) LoadDurableVideoTask(ctx context.Context, taskID 
 	if userID <= 0 || apiKeyID <= 0 {
 		return nil, errors.New("video task owner required")
 	}
-	return repo.GetVideoTask(ctx, taskID, userID, apiKeyID)
+	t, err := repo.GetVideoTask(ctx, taskID, userID, apiKeyID)
+	if t != nil && t.Pending.TrackingOnly {
+		// Lifecycle records do not opt legacy providers into worker settlement.
+		return nil, err
+	}
+	return t, err
 }
 
 func validateVideoTaskID(id string) error {
