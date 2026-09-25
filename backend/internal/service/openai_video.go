@@ -30,7 +30,11 @@ func buildOpenAIVideoURL(account *Account, cfg *config.Config, endpoint GrokMedi
 	if err != nil {
 		return "", err
 	}
-	target, err := url.Parse(buildOpenAIEndpointURL(base, "/v1/videos"))
+	upstreamPath := "/v1/videos"
+	if isQianDreamVideoProtocol(account) {
+		upstreamPath = "/v1/video/generations"
+	}
+	target, err := url.Parse(buildOpenAIEndpointURL(base, upstreamPath))
 	if err != nil {
 		return "", err
 	}
@@ -39,7 +43,7 @@ func buildOpenAIVideoURL(account *Account, cfg *config.Config, endpoint GrokMedi
 			return "", err
 		}
 		target.Path += "/" + strings.TrimSpace(requestID)
-		if endpoint == GrokMediaEndpointVideoContent {
+		if endpoint == GrokMediaEndpointVideoContent && !isQianDreamVideoProtocol(account) {
 			target.Path += "/content"
 		}
 	}
@@ -469,6 +473,34 @@ func openAIVideoCompletion(body []byte, taskID string) *OpenAIForwardResult {
 	}
 }
 
+func qianDreamVideoCompletion(body []byte, taskID string) *OpenAIForwardResult {
+	status := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "status").String()))
+	if status != "completed" || qianDreamVideoOutputURL(body) == "" {
+		return nil
+	}
+	seconds := 0
+	for _, path := range []string{"duration", "seconds", "video.duration"} {
+		if value, err := strconv.Atoi(gjson.GetBytes(body, path).String()); err == nil && value > 0 {
+			seconds = value
+			break
+		}
+	}
+	resolution := NormalizeVideoBillingResolutionOrDefault(gjson.GetBytes(body, "resolution").String())
+	return &OpenAIForwardResult{
+		ResponseID:    firstNonEmpty(extractGrokMediaVideoRequestID(body), taskID),
+		UpstreamModel: strings.TrimSpace(gjson.GetBytes(body, "model").String()),
+		VideoCount:    1, VideoDurationSeconds: seconds,
+		VideoResolution: resolution, VideoURL: qianDreamVideoOutputURL(body),
+	}
+}
+
+func openAIVideoCompletionForAccount(account *Account, body []byte, taskID string) *OpenAIForwardResult {
+	if isQianDreamVideoProtocol(account) {
+		return qianDreamVideoCompletion(body, taskID)
+	}
+	return openAIVideoCompletion(body, taskID)
+}
+
 func openAIVideoUsage(endpoint GrokMediaEndpoint, info GrokMediaRequestInfo, body []byte, taskID string) grokMediaUsageMetadata {
 	meta := grokMediaUsageFromResponse(endpoint, info, body)
 	if endpoint == GrokMediaEndpointVideosGenerations {
@@ -487,6 +519,22 @@ func openAIVideoUsage(endpoint GrokMediaEndpoint, info GrokMediaRequestInfo, bod
 			meta.VideoDurationSeconds = result.VideoDurationSeconds
 			meta.VideoResolution = result.VideoResolution
 		}
+	}
+	return meta
+}
+
+func openAIVideoUsageForAccount(account *Account, endpoint GrokMediaEndpoint, info GrokMediaRequestInfo, body []byte, taskID string) grokMediaUsageMetadata {
+	if !isQianDreamVideoProtocol(account) || !endpoint.IsVideoLookupRequest() {
+		return openAIVideoUsage(endpoint, info, body, taskID)
+	}
+	meta := grokMediaUsageMetadata{ResponseID: taskID}
+	if result := qianDreamVideoCompletion(body, taskID); result != nil {
+		meta.ResponseID = result.ResponseID
+		meta.Model = result.Model
+		meta.BillingModel = result.BillingModel
+		meta.VideoCount = result.VideoCount
+		meta.VideoDurationSeconds = result.VideoDurationSeconds
+		meta.VideoResolution = result.VideoResolution
 	}
 	return meta
 }

@@ -10,6 +10,9 @@ import (
 // Only explicitly configured Grok-compatible relays use these status names.
 // Native OpenAI/New API responses remain unchanged.
 func normalizeOpenAIVideoResponse(account *Account, body []byte) []byte {
+	if isQianDreamVideoProtocol(account) {
+		return normalizeQianDreamVideoResponse(body)
+	}
 	if isZhongYVideoProtocol(account) {
 		return normalizeZhongYVideoResponse(body)
 	}

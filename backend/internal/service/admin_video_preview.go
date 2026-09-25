@@ -51,6 +51,9 @@ func (s *OpenAIGatewayService) adminVideoContentURL(account *Account, requestID 
 	if !account.IsOpenAIApiKey() {
 		return "", fmt.Errorf("unsupported video account")
 	}
+	if isQianDreamVideoProtocol(account) {
+		return buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoStatus, taskID)
+	}
 	base, err := s.validateUpstreamBaseURL(account.GetOpenAIBaseURL())
 	if err != nil {
 		return "", err
@@ -121,6 +124,38 @@ func (s *OpenAIGatewayService) StreamAdminVideoPreview(c *gin.Context, account *
 			target, signedContent = contentURL, true
 		}
 	}
+	if isQianDreamVideoProtocol(account) {
+		taskID, _ := adminVideoTaskID(requestID)
+		statusURL, err := buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoStatus, taskID)
+		if err != nil {
+			return err
+		}
+		statusReq, err := http.NewRequestWithContext(WithHTTPUpstreamRedirectsDisabled(c.Request.Context()), http.MethodGet, statusURL, nil)
+		if err != nil {
+			return err
+		}
+		statusReq.Header.Set("Authorization", "Bearer "+token)
+		statusReq.Header.Set("Accept", "application/json")
+		account.ApplyHeaderOverrides(statusReq.Header)
+		statusResp, err := s.httpUpstream.Do(statusReq, proxyURL, account.ID, account.Concurrency)
+		if err != nil {
+			return err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(statusResp.Body, (1<<20)+1))
+		_ = statusResp.Body.Close()
+		if readErr != nil || len(body) > 1<<20 || statusResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("video task status unavailable")
+		}
+		body = normalizeOpenAIVideoResponse(account, body)
+		if openAIVideoCompletionForAccount(account, body, taskID) == nil {
+			return fmt.Errorf("video task is not completed")
+		}
+		downloadURL, err := s.qianDreamVideoDownloadURL(account, qianDreamVideoOutputURL(body))
+		if err != nil {
+			return err
+		}
+		target, signedContent = downloadURL, true
+	}
 	req, err := http.NewRequestWithContext(WithHTTPUpstreamRedirectsDisabled(c.Request.Context()), http.MethodGet, target, nil)
 	if err != nil {
 		return err
@@ -138,11 +173,16 @@ func (s *OpenAIGatewayService) StreamAdminVideoPreview(c *gin.Context, account *
 			req.Header.Set(name, value)
 		}
 	}
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	var resp *http.Response
+	if isQianDreamVideoProtocol(account) && signedContent {
+		resp, err = s.doQianDreamVideoDownload(req, proxyURL, account)
+	} else {
+		resp, err = s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	}
 	if err != nil {
 		return err
 	}
-	if account.IsOpenAIApiKey() && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone) {
+	if account.IsOpenAIApiKey() && !isQianDreamVideoProtocol(account) && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone) {
 		_ = resp.Body.Close()
 		resp, err = s.adminVideoPreviewFallback(c, account, requestID, target, token, proxyURL)
 		if err != nil {

@@ -708,15 +708,19 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 	var upstreamModel string
 	if openAIVideo {
 		if endpoint.RequiresRequestBody() {
-			err = validateOpenAIVideoOriginalResolution(body, contentType)
-			if err == nil {
-				body, contentType, requestInfo, upstreamModel, err = prepareOpenAIVideoBody(account, body, contentType)
-			}
-			if err == nil && requestInfo.DurationSeconds <= 0 {
-				err = fmt.Errorf("video seconds/duration is required and must be an integer between 1 and 15")
-			}
-			if err == nil {
-				body, contentType, requestInfo, err = prepareOpenAIVideoResolution(account, body, contentType, requestInfo)
+			if isQianDreamVideoProtocol(account) && endpoint == GrokMediaEndpointVideosGenerations {
+				body, contentType, requestInfo, upstreamModel, err = prepareQianDreamVideoBody(account, body, requestInfo)
+			} else {
+				err = validateOpenAIVideoOriginalResolution(body, contentType)
+				if err == nil {
+					body, contentType, requestInfo, upstreamModel, err = prepareOpenAIVideoBody(account, body, contentType)
+				}
+				if err == nil && requestInfo.DurationSeconds <= 0 {
+					err = fmt.Errorf("video seconds/duration is required and must be an integer between 1 and 15")
+				}
+				if err == nil {
+					body, contentType, requestInfo, err = prepareOpenAIVideoResolution(account, body, contentType, requestInfo)
+				}
 			}
 			if err != nil {
 				MarkResponseCommitted(c)
@@ -890,7 +894,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 	}
 	usage := grokMediaUsageFromResponse(endpoint, requestInfo, respBody)
 	if openAIVideo {
-		usage = openAIVideoUsage(endpoint, requestInfo, respBody, requestID)
+		usage = openAIVideoUsageForAccount(account, endpoint, requestInfo, respBody, requestID)
 		if endpoint.IsVideoLookupRequest() {
 			upstreamModel = strings.TrimSpace(gjson.GetBytes(respBody, "model").String())
 		}
@@ -1003,7 +1007,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 			writeGrokMediaErrorResponse(c, http.StatusBadGateway, "invalid_video_response", "Video upstream returned unsupported or conflicting billing parameters")
 			return nil, err
 		}
-		if openAIVideoCompletion(statusBody, requestID) == nil {
+		if openAIVideoCompletionForAccount(account, statusBody, requestID) == nil {
 			MarkResponseCommitted(c)
 			c.Header("Cache-Control", "private, no-store")
 			writeGrokMediaErrorResponse(c, http.StatusConflict, "video_not_ready", "Video content is not ready")
@@ -1020,7 +1024,14 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		}
 	}
 	signedContent := contentURL != ""
-	if isZhongYVideoProtocol(account) {
+	if isQianDreamVideoProtocol(account) {
+		raw := qianDreamVideoOutputURL(statusBody)
+		contentURL, err = s.qianDreamVideoDownloadURL(account, raw)
+		if err != nil {
+			return nil, err
+		}
+		signedContent = true
+	} else if isZhongYVideoProtocol(account) {
 		if raw := strings.TrimSpace(gjson.GetBytes(statusBody, "download_url").String()); raw != "" {
 			contentURL, err = s.zhongYVideoDownloadURL(account, raw)
 			if err != nil {
@@ -1070,7 +1081,9 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	}
 
 	var contentResp *http.Response
-	if isZhongYVideoProtocol(account) && signedContent {
+	if isQianDreamVideoProtocol(account) && signedContent {
+		contentResp, err = s.doQianDreamVideoDownload(contentReq, proxyURL, account)
+	} else if isZhongYVideoProtocol(account) && signedContent {
 		contentResp, err = s.doZhongYVideoDownload(contentReq, proxyURL, account)
 	} else {
 		contentResp, err = s.httpUpstream.Do(contentReq, proxyURL, account.ID, account.Concurrency)
@@ -1115,7 +1128,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	}
 	billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID)
 	if account.Platform == PlatformOpenAI {
-		billed = openAIVideoCompletion(statusBody, requestID)
+		billed = openAIVideoCompletionForAccount(account, statusBody, requestID)
 	}
 	if billed != nil {
 		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
