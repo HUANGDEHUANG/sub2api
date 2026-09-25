@@ -57,6 +57,49 @@ type PlazaGroup struct {
 	Models                    []PlazaModel
 }
 
+// VideoPlazaTier is one configured video price tier. Labels are kept verbatim
+// because some providers encode audio/reference-video variants after the
+// resolution (for example, "1080p|on|yes").
+type VideoPlazaTier struct {
+	Label string
+	Price float64
+}
+
+// VideoPlazaOffer is a price offer for one model in one visible group.
+type VideoPlazaOffer struct {
+	GroupID        int64
+	GroupName      string
+	RateMultiplier float64
+	BillingMode    BillingMode
+	Tiers          []VideoPlazaTier
+	DefaultPrice   *float64
+}
+
+// VideoPlazaModel is the public video model catalog entry. It contains no
+// account, API key, upstream URL, or scheduler internals.
+type VideoPlazaModel struct {
+	Name     string
+	Platform string
+	Offers   []VideoPlazaOffer
+}
+
+// VideoPlazaGroup is a display-only projection of an active group.
+type VideoPlazaGroup struct {
+	ID               int64
+	Name             string
+	Description      string
+	Platform         string
+	SubscriptionType string
+	RateMultiplier   float64
+	// These fields remain internal to the handler projection. They keep the
+	// public quote aligned with the video billing multiplier without exposing
+	// the setting itself.
+	VideoRateIndependent bool
+	VideoRateMultiplier  float64
+	IsExclusive          bool
+	Models               []VideoPlazaModel
+}
+
 // ModelPlazaService 聚合模型广场数据。
 //
 // 模型枚举来自渠道配置；token 模型的展示单价与阶梯由 BillingService 的阶梯表
@@ -101,6 +144,90 @@ func NewModelPlazaService(
 // 可见性过滤（专属分组）不在此层做，由 handler 按登录态裁剪。
 func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error) {
 	return s.ListCatalogGroups(ctx, nil)
+}
+
+// ListVideoGroups returns the active groups that have explicit video pricing.
+// It intentionally reads group pricing cards directly: video groups can be
+// configured before a channel publishes a complete model catalog, and the
+// configured card is the same source used by the billing resolver.
+func (s *ModelPlazaService) ListVideoGroups(ctx context.Context) ([]VideoPlazaGroup, error) {
+	groups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+
+	out := make([]VideoPlazaGroup, 0)
+	for i := range groups {
+		g := &groups[i]
+		byModel := make(map[string]*VideoPlazaModel)
+		order := make([]string, 0)
+		for _, pricing := range g.ModelPricing {
+			if pricing.BillingMode != BillingModeVideo && pricing.BillingMode != BillingModePerRequest {
+				continue
+			}
+			offer := VideoPlazaOffer{
+				GroupID:        g.ID,
+				GroupName:      g.Name,
+				RateMultiplier: g.RateMultiplier,
+				BillingMode:    pricing.BillingMode,
+			}
+			for _, interval := range pricing.Intervals {
+				if interval.PerRequestPrice == nil || *interval.PerRequestPrice < 0 {
+					continue
+				}
+				label := strings.TrimSpace(interval.TierLabel)
+				if label == "" {
+					label = "default"
+				}
+				offer.Tiers = append(offer.Tiers, VideoPlazaTier{Label: label, Price: *interval.PerRequestPrice})
+			}
+			if len(offer.Tiers) == 0 && pricing.PerRequestPrice != nil && *pricing.PerRequestPrice >= 0 {
+				price := *pricing.PerRequestPrice
+				offer.DefaultPrice = &price
+			}
+			if len(offer.Tiers) == 0 && offer.DefaultPrice == nil {
+				continue
+			}
+			for _, name := range pricing.Models {
+				name = strings.TrimSpace(name)
+				if name == "" {
+					continue
+				}
+				model := byModel[name]
+				if model == nil {
+					model = &VideoPlazaModel{Name: name, Platform: pricing.Platform}
+					byModel[name] = model
+					order = append(order, name)
+				}
+				model.Offers = append(model.Offers, offer)
+			}
+		}
+		if len(order) == 0 {
+			continue
+		}
+		sort.Strings(order)
+		models := make([]VideoPlazaModel, 0, len(order))
+		for _, name := range order {
+			model := *byModel[name]
+			sort.SliceStable(model.Offers, func(i, j int) bool {
+				return model.Offers[i].GroupName < model.Offers[j].GroupName
+			})
+			models = append(models, model)
+		}
+		out = append(out, VideoPlazaGroup{
+			ID: g.ID, Name: g.Name, Description: g.Description, Platform: g.Platform,
+			SubscriptionType: g.SubscriptionType, RateMultiplier: g.RateMultiplier,
+			VideoRateIndependent: g.VideoRateIndependent, VideoRateMultiplier: g.VideoRateMultiplier,
+			IsExclusive: g.IsExclusive, Models: models,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].RateMultiplier != out[j].RateMultiplier {
+			return out[i].RateMultiplier < out[j].RateMultiplier
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out, nil
 }
 
 // ListCatalogGroups limits the storefront without changing routing or billing configuration.

@@ -185,6 +185,26 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'modelPlaza.title'
     }
   },
+  {
+    path: '/video-model-plaza',
+    name: 'VideoModelPlaza',
+    component: () => import('@/views/VideoModelPlazaView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Video Model Plaza',
+      titleKey: 'videoPlaza.title'
+    }
+  },
+  {
+    path: '/video-docs',
+    name: 'VideoApiDocs',
+    component: () => import('@/views/VideoApiDocsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Video API Documentation',
+      titleKey: 'videoDocs.title'
+    }
+  },
 
   // ==================== User Routes ====================
   {

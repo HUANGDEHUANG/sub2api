@@ -711,6 +711,51 @@ export default {
     }
   },
 
+  videoPlaza: {
+    title: '视频模型广场',
+    description: '查看本站已配置的视频模型、分组和实收价格',
+    loading: '加载中...',
+    loadFailed: '加载视频模型广场失败',
+    empty: '暂无已配置视频价格的模型',
+    searchPlaceholder: '搜索模型或分组',
+    startingPrice: '起价',
+    viewDetails: '查看价格',
+    closeDetails: '收起详情',
+    perSecond: '/ 秒',
+    perRequest: '/ 次',
+    priceNote: '价格来自当前活动分组的计费配置，按用户实际生效倍率展示；档位标签按分组原配置保留。'
+  },
+
+  videoDocs: {
+    title: '视频 API 文档',
+    shortTitle: '视频 API',
+    intro: '通过统一的视频接口提交异步生成任务，并使用任务 ID 查询状态和获取成品。视频模型、分辨率和计费方式以视频模型广场为准。',
+    authTitle: '1. API 鉴权',
+    authText: '在请求头中使用站内 API Key。请把密钥保存在服务端环境变量中，不要放入浏览器前端或公开代码。',
+    createTitle: '2. 创建视频任务',
+    createText: '推荐使用统一的 /v1/videos 入口。请求会立即返回任务信息，生成过程通过查询接口获取。',
+    requestTitle: '3. 常用参数',
+    modelField: '必填，模型广场中的模型 ID。',
+    promptField: '文本生成提示词；图生视频可同时传入参考图片。',
+    durationField: '视频时长，单位为秒；具体上下限由模型和上游协议决定。',
+    resolutionField: '分辨率或上游支持的清晰度档位，例如 480p、720p、1080p。',
+    ratioField: '画面比例，例如 16:9、9:16。',
+    imagesField: '参考图片 URL 数组；必须使用调用方可访问且站点允许转发的地址。',
+    queryTitle: '4. 查询任务和下载视频',
+    queryText: '任务完成后，响应中的视频地址可能是临时地址。建议先查询状态，再通过 content 接口下载或播放。',
+    statusTitle: '5. 任务状态',
+    status: '状态',
+    meaning: '含义',
+    queued: '已创建，等待上游处理。',
+    inProgress: '上游正在生成。',
+    completed: '生成完成，可以获取视频。',
+    failed: '生成失败，请读取错误字段并按需重试。',
+    compatTitle: '6. 兼容入口',
+    compatText: '现有视频分组继续使用这些兼容入口。千梦协议账号由站内适配层转换，上游协议差异不会暴露给普通调用方。',
+    billingTitle: '7. 计费说明',
+    billingText: '视频按秒计费的模型使用 / 秒价格，按次模型使用 / 次价格；不同分辨率和协议变体分别计价。任务查询和下载不会重新生成任务，也不会重复扣费。'
+  },
+
   affiliate: {
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',

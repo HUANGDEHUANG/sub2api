@@ -707,6 +707,51 @@ export default {
     }
   },
 
+  videoPlaza: {
+    title: 'Video Model Plaza',
+    description: 'Browse video models, groups, and effective prices configured on this site',
+    loading: 'Loading...',
+    loadFailed: 'Failed to load video model plaza',
+    empty: 'No video pricing is configured',
+    searchPlaceholder: 'Search models or groups',
+    startingPrice: 'Starting price',
+    viewDetails: 'View pricing',
+    closeDetails: 'Close details',
+    perSecond: '/ second',
+    perRequest: '/ request',
+    priceNote: 'Prices come from active group billing configuration and include the effective user rate. Tier labels are kept from the group configuration.'
+  },
+
+  videoDocs: {
+    title: 'Video API Documentation',
+    shortTitle: 'Video API',
+    intro: 'Submit asynchronous video generation tasks through one API, then query the task and retrieve the generated video. Available models, resolutions, and prices are listed in the Video Model Plaza.',
+    authTitle: '1. Authentication',
+    authText: 'Use a site API key in the Authorization header. Keep the key on your server and out of browser code or public repositories.',
+    createTitle: '2. Create a video task',
+    createText: 'Use the unified /v1/videos endpoint. It returns task information immediately; query the task while the upstream is generating.',
+    requestTitle: '3. Common fields',
+    modelField: 'Required. A model ID shown in the model plaza.',
+    promptField: 'Text prompt; image-to-video requests may also include reference images.',
+    durationField: 'Duration in seconds. Limits depend on the model and upstream protocol.',
+    resolutionField: 'Resolution or supported quality tier such as 480p, 720p, or 1080p.',
+    ratioField: 'Aspect ratio such as 16:9 or 9:16.',
+    imagesField: 'Array of reference image URLs accepted by the site and reachable for forwarding.',
+    queryTitle: '4. Query and download',
+    queryText: 'Completed responses may contain temporary URLs. Query the task first, then use the content endpoint to download or play the result.',
+    statusTitle: '5. Task states',
+    status: 'State',
+    meaning: 'Meaning',
+    queued: 'Created and waiting for upstream processing.',
+    inProgress: 'The upstream is generating the video.',
+    completed: 'Generation is complete and the video can be retrieved.',
+    failed: 'Generation failed; read the error fields before retrying.',
+    compatTitle: '6. Compatible endpoints',
+    compatText: 'Existing video groups continue to support these compatible endpoints. QianDream accounts are translated by the site adapter, so normal callers do not need to know the upstream protocol.',
+    billingTitle: '7. Billing',
+    billingText: 'Per-second models use the / second price; per-request models use the / request price. Resolution and protocol variants are priced independently. Querying or downloading a task does not regenerate it or charge it again.'
+  },
+
   affiliate: {
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',
