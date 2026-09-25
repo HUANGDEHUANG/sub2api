@@ -721,6 +721,7 @@ export default {
     startingPrice: '起价',
     viewDetails: '查看价格',
     closeDetails: '收起详情',
+    backToList: '返回模型列表',
     perSecond: '/ 秒',
     perRequest: '/ 次',
     priceNote: '价格来自当前活动分组的计费配置，按用户实际生效倍率展示；档位标签按分组原配置保留。'

@@ -17,6 +17,13 @@ describe('AppSidebar video and scheduler icons', () => {
     expect(componentSource).toContain("d: 'M15 10l6-3v10l-6-3'")
     expect(componentSource).toContain("d: 'M8 21h8m-4-4v4M6 10h3l2-4 2 8 2-4h3'")
   })
+
+  it('exposes the video model plaza and video API docs in the main navigation', () => {
+    expect(componentSource).toContain("path: '/video-model-plaza?embedded=1'")
+    expect(componentSource).toContain("path: '/video-docs?embedded=1'")
+    expect(componentSource).toContain('icon: VideoPlazaIcon')
+    expect(componentSource).toContain('icon: DocumentIcon')
+  })
 })
 
 describe('AppSidebar custom SVG styles', () => {

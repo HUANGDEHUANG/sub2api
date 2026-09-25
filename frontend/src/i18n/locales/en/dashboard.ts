@@ -717,6 +717,7 @@ export default {
     startingPrice: 'Starting price',
     viewDetails: 'View pricing',
     closeDetails: 'Close details',
+    backToList: 'Back to model list',
     perSecond: '/ second',
     perRequest: '/ request',
     priceNote: 'Prices come from active group billing configuration and include the effective user rate. Tier labels are kept from the group configuration.'

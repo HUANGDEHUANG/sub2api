@@ -335,6 +335,37 @@ const VideoTaskIcon = {
     )
 }
 
+const VideoPlazaIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'm10 9 5 3-5 3V9z'
+        })
+      ]
+    )
+}
+
+const DocumentIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M19.5 14.25v-8.625a1.875 1.875 0 0 0-1.875-1.875H8.625A1.875 1.875 0 0 0 6.75 5.625v12.75a1.875 1.875 0 0 0 1.875 1.875h8.625m2.25-6-3.75 3.75m0 0-3.75-3.75m3.75 3.75V9.75'
+        })
+      ]
+    )
+}
+
 const SchedulerMonitorIcon = {
   render: () =>
     h(
@@ -755,7 +786,11 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const imageWorkbench = customMenuItemsForUser.value.find((item) => item.id === '97370c95df45cba1')
   const remainingCustomMenuItems = customMenuItemsForUser.value.filter((item) => !isAccessDocsItem(item) && item.id !== imageWorkbench?.id)
   if (withDashboard) {
-    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
+    items.push(
+      { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+      { path: '/video-model-plaza?embedded=1', label: t('videoPlaza.title'), icon: VideoPlazaIcon },
+      { path: '/video-docs?embedded=1', label: t('videoDocs.shortTitle'), icon: DocumentIcon },
+    )
   }
   if (imageWorkbench) {
     items.push({ path: `/custom/${imageWorkbench.id}`, label: imageWorkbench.label, icon: BatchImageIcon, recommended: true })
@@ -822,6 +857,8 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+    { path: '/video-model-plaza?embedded=1', label: t('videoPlaza.title'), icon: VideoPlazaIcon },
+    { path: '/video-docs?embedded=1', label: t('videoDocs.shortTitle'), icon: DocumentIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/scheduler', label: t('nav.scheduler'), icon: SchedulerMonitorIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/video-tasks', label: t('admin.videoTasks.title'), icon: VideoTaskIcon },
@@ -943,7 +980,8 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/')
+  const routePath = path.split('?')[0]
+  return route.path === routePath || route.path.startsWith(routePath + '/')
 }
 
 function isGroupActive(item: NavItem): boolean {

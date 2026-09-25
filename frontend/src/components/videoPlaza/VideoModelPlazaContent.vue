@@ -60,33 +60,42 @@
       </div>
       <div v-else class="rounded-2xl border border-dashed border-gray-300 px-5 py-12 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400">{{ t('videoPlaza.empty') }}</div>
 
-      <section v-if="selectedCard" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-card dark:border-dark-700/70 dark:bg-dark-800/60">
-        <header class="border-b border-gray-100 px-5 py-4 dark:border-dark-700/60">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ selectedCard.model.name }}</h2>
-              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ selectedCard.group.name }} · {{ selectedCard.group.platform }}</p>
-            </div>
-            <button type="button" class="btn btn-secondary" @click="selectedKey = null">{{ t('videoPlaza.closeDetails') }}</button>
-          </div>
-        </header>
-        <div class="divide-y divide-gray-100 dark:divide-dark-700/60">
-          <div v-for="(offer, index) in selectedCard.model.offers" :key="`${offer.group_id}-${index}`" class="px-5 py-4">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ offer.group_name }}</span>
-              <span class="text-xs text-gray-400">{{ unitLabel(offer) }} · ×{{ formatPrice(offer.rate_multiplier) }}</span>
-            </div>
-            <div v-if="offer.tiers?.length" class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <div v-for="tier in offer.tiers" :key="tier.label" class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-900/50">
-                <p class="truncate text-[11px] text-gray-400 dark:text-dark-500" :title="tier.label">{{ tier.label }}</p>
-                <p class="mt-1 font-mono text-sm font-semibold text-gray-900 dark:text-white">${{ formatPrice(tier.price) }}</p>
+      <Teleport to="body">
+        <div v-if="selectedCard" class="fixed inset-0 z-50" role="presentation" @click="closeDetails">
+          <div class="absolute inset-0 bg-gray-950/40 backdrop-blur-[2px]" aria-hidden="true" />
+          <aside
+            class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-hidden border-l border-gray-200 bg-white shadow-2xl dark:border-dark-700 dark:bg-dark-900"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="selectedCard.model.name"
+            @click.stop
+          >
+            <header class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-dark-700/60">
+              <div class="min-w-0">
+                <h2 class="break-all text-lg font-semibold text-gray-900 dark:text-white">{{ selectedCard.model.name }}</h2>
+                <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ selectedCard.group.name }} · {{ selectedCard.group.platform }}</p>
+              </div>
+              <button type="button" class="btn btn-secondary shrink-0" @click="closeDetails">{{ t('videoPlaza.backToList') }}</button>
+            </header>
+            <div class="min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto dark:divide-dark-700/60">
+              <div v-for="(offer, index) in selectedCard.model.offers" :key="`${offer.group_id}-${index}`" class="px-5 py-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ offer.group_name }}</span>
+                  <span class="text-xs text-gray-400">{{ unitLabel(offer) }} · ×{{ formatPrice(offer.rate_multiplier) }}</span>
+                </div>
+                <div v-if="offer.tiers?.length" class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div v-for="tier in offer.tiers" :key="tier.label" class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-800">
+                    <p class="truncate text-[11px] text-gray-400 dark:text-dark-500" :title="tier.label">{{ tier.label }}</p>
+                    <p class="mt-1 font-mono text-sm font-semibold text-gray-900 dark:text-white">${{ formatPrice(tier.price) }}</p>
+                  </div>
+                </div>
+                <p v-else class="mt-3 font-mono text-sm font-semibold text-gray-900 dark:text-white">${{ formatPrice(offer.default_price ?? 0) }}</p>
               </div>
             </div>
-            <p v-else class="mt-3 font-mono text-sm font-semibold text-gray-900 dark:text-white">${{ formatPrice(offer.default_price ?? 0) }}</p>
-          </div>
+            <p class="border-t border-gray-100 px-5 py-3 text-xs text-gray-400 dark:border-dark-700/60 dark:text-dark-500">{{ t('videoPlaza.priceNote') }}</p>
+          </aside>
         </div>
-        <p class="border-t border-gray-100 px-5 py-3 text-xs text-gray-400 dark:border-dark-700/60 dark:text-dark-500">{{ t('videoPlaza.priceNote') }}</p>
-      </section>
+      </Teleport>
     </template>
   </div>
 </template>
@@ -109,6 +118,10 @@ const cards = computed(() => props.groups.flatMap(group => group.models
   .map(model => ({ key: `${group.id}:${model.name}`, group, model, startingOffer: cheapestOffer(model), startingPrice: cheapestPrice(model) }))))
 
 const selectedCard = computed(() => cards.value.find(card => card.key === selectedKey.value) ?? null)
+
+function closeDetails(): void {
+  selectedKey.value = null
+}
 
 function cheapestOffer(model: VideoPlazaModel): VideoPlazaOffer {
   return model.offers.reduce((best, offer) => cheapestPrice(offer) < cheapestPrice(best) ? offer : best, model.offers[0])
