@@ -455,6 +455,7 @@ type OpenAIGatewayService struct {
 	videoTaskCancel       context.CancelFunc
 	videoTaskDone         chan struct{}
 	videoTaskStopped      bool
+	videoPreviewCache     *videoPreviewCache
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
 	cache                 GatewayCache
@@ -558,6 +559,7 @@ func NewOpenAIGatewayService(
 		usageBillingRepo:    usageBillingRepo,
 		userRepo:            userRepo,
 		userSubRepo:         userSubRepo,
+		videoPreviewCache:   newVideoPreviewCache(videoPreviewCacheDir),
 		cache:               cache,
 		cfg:                 cfg,
 		codexDetector:       NewOpenAICodexClientRestrictionDetector(cfg),

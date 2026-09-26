@@ -55,6 +55,9 @@ func (h *UsageHandler) VideoContent(c *gin.Context) {
 	if log == nil {
 		return
 	}
+	if h.videoGateway != nil && h.videoGateway.ServeCachedAdminVideoPreview(c, log) {
+		return
+	}
 	account, err := h.adminService.GetAccount(c.Request.Context(), log.AccountID)
 	if err != nil || account == nil || h.videoGateway == nil {
 		response.NotFound(c, "video account is unavailable")

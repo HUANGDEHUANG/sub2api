@@ -35,6 +35,7 @@ func (s *OpenAIGatewayService) StartVideoTaskWorker(apiKeyService *APIKeyService
 	if s == nil || apiKeyService == nil {
 		return
 	}
+	s.videoPreviewCache.start()
 	repo, err := s.videoTaskRepository()
 	if err != nil {
 		return
@@ -98,6 +99,7 @@ func (s *OpenAIGatewayService) StopVideoTaskWorker() {
 	if s == nil {
 		return
 	}
+	s.videoPreviewCache.stop()
 	s.videoTaskMu.Lock()
 	s.videoTaskStopped = true
 	cancel, done := s.videoTaskCancel, s.videoTaskDone
@@ -220,9 +222,11 @@ func (s *OpenAIGatewayService) pollDurableVideoTask(ctx context.Context, t *Vide
 		return nil, "", err
 	}
 	// Local recorder only. ForwardGrokMedia enforces existing account URL,
-	// credential, proxy, and provider protocol rules. Never fetch video.url.
+	// credential, proxy, and provider protocol rules. Completed media is queued
+	// separately for read-only caching and cannot delay settlement.
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
+	c.Set(videoPreviewCacheOwnerKey, t.APIKeyID)
 	c.Request, err = http.NewRequestWithContext(ctx, http.MethodGet, "/v1/videos/"+url.PathEscape(t.TaskID), nil)
 	if err != nil {
 		return nil, "", err

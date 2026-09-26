@@ -2693,3 +2693,19 @@
 ### C-380 frontend/src/views/user/__tests__/UsageView.spec.ts
 - 文件：frontend/src/views/user/__tests__/UsageView.spec.ts
 - 断言："list.mockResolvedValue({ items: [{ id: 1, name: 'demo-key' }] })"
+
+### C-413 视频成功结果异步持久化 7 天缓存
+- 文件：backend/internal/service/video_preview_cache.go
+- 断言："videoPreviewCacheRetention  = 7 * 24 * time.Hour"
+- 断言："return os.Rename(stage, filepath.Join(v.root, key))"
+- 断言："func (s *OpenAIGatewayService) ServeCachedAdminVideoPreview"
+
+### C-414 视频缓存按成功完整文件发布并安全清理
+- 文件：backend/internal/service/video_preview_capture.go
+- 断言："func (s *OpenAIGatewayService) captureCompletedVideo"
+- 断言："streamGrokSignedVideoPreviewURL"
+
+### C-415 视频缓存回看优先于上游
+- 文件：backend/internal/handler/admin/usage_video.go
+- 断言："ServeCachedAdminVideoPreview(c, log)"
+- 断言："video account is unavailable"

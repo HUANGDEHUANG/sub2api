@@ -100,7 +100,8 @@ func videoTaskMonitorRoutingFingerprint(account *Account) string {
 }
 
 // Poll the pinned upstream's GET endpoint directly. Do not invoke a public
-// gateway handler (which can settle usage) or download the generated video.
+// gateway handler (which can settle usage). Successful results may enqueue an
+// independent read-only media download, never billing or generation.
 func (s *OpenAIGatewayService) pollVideoTaskMonitor(ctx context.Context, t *VideoTask) (string, string) {
 	if validateVideoTaskID(t.TaskID) != nil || s.accountRepo == nil {
 		return VideoTaskPending, "poll_failed"
@@ -115,6 +116,7 @@ func (s *OpenAIGatewayService) pollVideoTaskMonitor(ctx context.Context, t *Vide
 	}
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
+	c.Set(videoPreviewCacheOwnerKey, t.APIKeyID)
 	c.Request, _ = http.NewRequestWithContext(ctx, http.MethodGet, "/video-task-monitor", nil)
 	var result *OpenAIForwardResult
 	if strings.HasPrefix(t.TaskID, "seedance:") {

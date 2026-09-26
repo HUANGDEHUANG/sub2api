@@ -878,6 +878,9 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 			}
 		}
 	}
+	if endpoint == GrokMediaEndpointVideoStatus || endpoint == GrokMediaEndpointVideosGenerations {
+		s.captureCompletedVideo(c, account, requestID, respBody)
+	}
 	if endpoint == GrokMediaEndpointVideoStatus {
 		if openAIVideo {
 			respBody = rewriteOpenAIVideoContentURLs(respBody, requestID, grokMediaContentProxyURL(c, requestID))
@@ -1015,6 +1018,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		}
 	}
 
+	s.captureCompletedVideo(c, account, requestID, statusBody)
 	contentURL := ""
 	if account.Platform == PlatformGrok {
 		contentURL, err = grokMediaSignedVideoContentURL(statusBody, requestID)

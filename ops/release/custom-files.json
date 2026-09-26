@@ -381,6 +381,9 @@
     "frontend/src/views/user/SubscriptionsView.vue",
     "frontend/src/views/user/UsageView.vue",
     "frontend/src/views/user/UserOrdersView.vue",
-    "frontend/src/views/user/__tests__/UsageView.spec.ts"
+    "frontend/src/views/user/__tests__/UsageView.spec.ts",
+    "backend/internal/service/video_preview_cache.go",
+    "backend/internal/service/video_preview_cache_test.go",
+    "backend/internal/service/video_preview_capture.go"
   ]
 }
