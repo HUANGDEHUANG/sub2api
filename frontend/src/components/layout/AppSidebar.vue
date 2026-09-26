@@ -857,8 +857,6 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/video-model-plaza?embedded=1', label: t('videoPlaza.title'), icon: VideoPlazaIcon },
-    { path: '/video-docs?embedded=1', label: t('videoDocs.shortTitle'), icon: DocumentIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/scheduler', label: t('nav.scheduler'), icon: SchedulerMonitorIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/video-tasks', label: t('admin.videoTasks.title'), icon: VideoTaskIcon },

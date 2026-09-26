@@ -24,6 +24,12 @@ describe('AppSidebar video and scheduler icons', () => {
     expect(componentSource).toContain('icon: VideoPlazaIcon')
     expect(componentSource).toContain('icon: DocumentIcon')
   })
+
+  it('does not add the user-facing video links to the admin navigation', () => {
+    const adminBlock = componentSource.slice(componentSource.indexOf('const adminNavItems'))
+    expect(adminBlock).not.toContain("path: '/video-model-plaza?embedded=1'")
+    expect(adminBlock).not.toContain("path: '/video-docs?embedded=1'")
+  })
 })
 
 describe('AppSidebar custom SVG styles', () => {
