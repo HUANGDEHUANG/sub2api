@@ -81,6 +81,25 @@ func TestListVideoGroups_UsesConfiguredVideoTiers(t *testing.T) {
 	require.InDelta(t, 0.12, out[0].Models[1].Offers[0].Tiers[0].Price, 1e-12)
 }
 
+func TestListVideoGroups_NormalizesAndDeduplicatesLegacyResolutionLabels(t *testing.T) {
+	price := 0.685
+	groups := []Group{{
+		ID: 10, Name: "video", Platform: PlatformOpenAI,
+		ModelPricing: []ChannelModelPricing{{
+			Platform: PlatformOpenAI, Models: []string{"seedance-2.5"}, BillingMode: BillingModeVideo,
+			Intervals: []PricingInterval{
+				{TierLabel: "1080p|off|no", PerRequestPrice: &price},
+				{TierLabel: "1080p|on|yes", PerRequestPrice: &price},
+			},
+		}},
+	}}
+
+	out, err := newPlazaService(nil, groups, nil).ListVideoGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out[0].Models[0].Offers[0].Tiers, 1)
+	require.Equal(t, "1080p", out[0].Models[0].Offers[0].Tiers[0].Label)
+}
+
 func TestListPlazaGroups_Fable51HasNoImplicitReasoningMultiplier(t *testing.T) {
 	ch := plazaPricedChannel(1, "ch", []int64{10}, "anthropic", "claude-fable-5-1")
 	svc := newPlazaService([]Channel{ch}, []Group{{ID: 10, Platform: "anthropic"}}, nil)

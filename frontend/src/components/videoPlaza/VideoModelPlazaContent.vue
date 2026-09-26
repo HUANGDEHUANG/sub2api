@@ -85,7 +85,7 @@
                 </div>
                 <div v-if="offer.tiers?.length" class="mt-3 grid gap-2 sm:grid-cols-2">
                   <div v-for="tier in offer.tiers" :key="tier.label" class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-800">
-                    <p class="truncate text-[11px] text-gray-400 dark:text-dark-500" :title="tier.label">{{ tier.label }}</p>
+                    <p class="truncate text-[11px] text-gray-400 dark:text-dark-500" :title="formatVideoTierLabel(tier.label)">{{ formatVideoTierLabel(tier.label) }}</p>
                     <p class="mt-1 font-mono text-sm font-semibold text-gray-900 dark:text-white">${{ formatPrice(tier.price) }}</p>
                   </div>
                 </div>
@@ -139,5 +139,9 @@ function formatPrice(value: number): string {
 
 function unitLabel(offer: VideoPlazaOffer): string {
   return offer.billing_mode === 'video' ? t('videoPlaza.perSecond') : t('videoPlaza.perRequest')
+}
+
+function formatVideoTierLabel(label: string): string {
+  return label.split('|', 1)[0]?.trim() || label.trim()
 }
 </script>

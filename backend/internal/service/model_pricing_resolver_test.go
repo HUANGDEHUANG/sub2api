@@ -207,6 +207,19 @@ func TestGetRequestTierPrice_NilPerRequestPrice(t *testing.T) {
 	require.InDelta(t, 0.0, r.GetRequestTierPrice(resolved, "1K"), 1e-12)
 }
 
+func TestGetRequestTierPrice_VideoMatchesLegacyCompositeTierLabel(t *testing.T) {
+	bs := newTestBillingServiceForResolver()
+	r := NewModelPricingResolver(&ChannelService{}, bs)
+	price := 0.685
+	resolved := &ResolvedPricing{
+		Mode:         BillingModeVideo,
+		RequestTiers: []PricingInterval{{TierLabel: "1080p|off|no", PerRequestPrice: &price}},
+	}
+
+	require.InDelta(t, price, r.GetRequestTierPrice(resolved, "1080p"), 1e-12)
+	require.Zero(t, r.GetRequestTierPrice(resolved, "2k"))
+}
+
 // ===========================================================================
 // Channel override tests — exercises applyChannelOverrides via Resolve
 // ===========================================================================

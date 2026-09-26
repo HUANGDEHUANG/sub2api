@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 )
@@ -57,9 +58,8 @@ type PlazaGroup struct {
 	Models                    []PlazaModel
 }
 
-// VideoPlazaTier is one configured video price tier. Labels are kept verbatim
-// because some providers encode audio/reference-video variants after the
-// resolution (for example, "1080p|on|yes").
+// VideoPlazaTier is one configured video price tier. Public labels contain only
+// the resolution; legacy provider metadata after '|' is not a user-facing tier.
 type VideoPlazaTier struct {
 	Label string
 	Price float64
@@ -175,11 +175,30 @@ func (s *ModelPlazaService) ListVideoGroups(ctx context.Context) ([]VideoPlazaGr
 				if interval.PerRequestPrice == nil || *interval.PerRequestPrice < 0 {
 					continue
 				}
-				label := strings.TrimSpace(interval.TierLabel)
+				label := NormalizeVideoTierLabel(interval.TierLabel)
 				if label == "" {
 					label = "default"
 				}
-				offer.Tiers = append(offer.Tiers, VideoPlazaTier{Label: label, Price: *interval.PerRequestPrice})
+				for tierIndex := range offer.Tiers {
+					if offer.Tiers[tierIndex].Label != label {
+						continue
+					}
+					if offer.Tiers[tierIndex].Price != *interval.PerRequestPrice {
+						slog.Warn("video_model_plaza_conflicting_resolution_price",
+							"group_id", g.ID, "model", strings.Join(pricing.Models, ","),
+							"resolution", label, "existing_price", offer.Tiers[tierIndex].Price,
+							"price", *interval.PerRequestPrice)
+						// Prefer an explicitly plain label when legacy and plain
+						// entries disagree; billing uses the exact label first.
+						if strings.TrimSpace(interval.TierLabel) == label {
+							offer.Tiers[tierIndex].Price = *interval.PerRequestPrice
+						}
+					}
+					break
+				}
+				if !slicesContainsVideoTier(offer.Tiers, label) {
+					offer.Tiers = append(offer.Tiers, VideoPlazaTier{Label: label, Price: *interval.PerRequestPrice})
+				}
 			}
 			if len(offer.Tiers) == 0 && pricing.PerRequestPrice != nil && *pricing.PerRequestPrice >= 0 {
 				price := *pricing.PerRequestPrice
@@ -228,6 +247,15 @@ func (s *ModelPlazaService) ListVideoGroups(ctx context.Context) ([]VideoPlazaGr
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
+}
+
+func slicesContainsVideoTier(tiers []VideoPlazaTier, label string) bool {
+	for _, tier := range tiers {
+		if tier.Label == label {
+			return true
+		}
+	}
+	return false
 }
 
 // ListCatalogGroups limits the storefront without changing routing or billing configuration.

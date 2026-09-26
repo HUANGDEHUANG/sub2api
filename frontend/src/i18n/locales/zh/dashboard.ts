@@ -724,7 +724,7 @@ export default {
     backToList: '返回模型列表',
     perSecond: '/ 秒',
     perRequest: '/ 次',
-    priceNote: '价格来自当前活动分组的计费配置，按用户实际生效倍率展示；档位标签按分组原配置保留。'
+    priceNote: '价格来自当前活动分组的计费配置，按用户实际生效倍率展示；视频档位按分辨率显示。'
   },
 
   videoDocs: {

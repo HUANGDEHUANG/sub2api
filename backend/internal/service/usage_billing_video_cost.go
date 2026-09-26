@@ -169,7 +169,7 @@ func (s *OpenAIGatewayService) resolveVideoTaskPrice(ctx context.Context, key *A
 		}
 		identified := resolved.channelPricing != nil && resolved.channelPricing.PerRequestPrice != nil
 		for _, tier := range resolved.RequestTiers {
-			if tier.PerRequestPrice != nil && tier.TierLabel == resolution {
+			if tier.PerRequestPrice != nil && VideoTierLabelsMatch(tier.TierLabel, resolution) {
 				identified = true
 			}
 		}

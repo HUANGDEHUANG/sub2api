@@ -388,6 +388,13 @@ func (r *ModelPricingResolver) GetRequestTierPrice(resolved *ResolvedPricing, ti
 			return *tier.PerRequestPrice
 		}
 	}
+	if resolved.Mode == BillingModeVideo {
+		for _, tier := range resolved.RequestTiers {
+			if VideoTierLabelsMatch(tier.TierLabel, tierLabel) && tier.PerRequestPrice != nil {
+				return *tier.PerRequestPrice
+			}
+		}
+	}
 	return 0
 }
 

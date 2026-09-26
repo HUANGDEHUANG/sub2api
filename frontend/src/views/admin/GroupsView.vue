@@ -4722,7 +4722,11 @@ const groupPricingFromAPI = (
     image_input_price: perTokenToMTok(entry.image_input_price),
     image_output_price: perTokenToMTok(entry.image_output_price),
     per_request_price: entry.per_request_price,
-    intervals: apiIntervalsToForm(entry.intervals || []),
+    intervals: apiIntervalsToForm(entry.intervals || []).map((interval) =>
+      entry.billing_mode === "video"
+        ? { ...interval, tier_label: normalizeVideoTierLabel(interval.tier_label) }
+        : interval,
+    ),
     time_pricing: createDefaultTimePricingForm(),
   }));
 
@@ -4750,9 +4754,19 @@ const groupPricingToAPI = (
       intervals:
         entry.billing_mode === "token"
           ? []
-          : formIntervalsToAPI(entry.intervals || []),
+          : formIntervalsToAPI(entry.intervals || []).map((interval) =>
+              entry.billing_mode === "video"
+                ? { ...interval, tier_label: normalizeVideoTierLabel(interval.tier_label) }
+                : interval,
+            ),
       time_pricing: null,
     }));
+
+function normalizeVideoTierLabel(label: string): string {
+  const trimmed = label.trim()
+  const separator = trimmed.indexOf('|')
+  return (separator >= 0 ? trimmed.slice(0, separator) : trimmed).trim()
+}
 
 const { t } = useI18n();
 const appStore = useAppStore();
