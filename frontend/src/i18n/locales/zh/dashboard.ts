@@ -728,6 +728,8 @@ export default {
     embeddingCategory: '向量',
     audioCategory: '音频',
     groupPriceHint: '查看当前分组的模型倍率和价格',
+    groupIntroduction: '分组介绍',
+    groupIntroductionFallback: '该分组暂未配置详细介绍，具体可用模型、参数和价格以当前页面为准。',
     modelDescription: '国产视频生成模型',
     modelIntroduction: '模型简介',
     modelIntroductionText: '该模型可用于视频生成，具体能力和可用参数以对应分组及上游支持为准。',

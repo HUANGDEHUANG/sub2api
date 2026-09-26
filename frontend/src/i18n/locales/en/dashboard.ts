@@ -724,6 +724,8 @@ export default {
     embeddingCategory: 'Embedding',
     audioCategory: 'Audio',
     groupPriceHint: 'View model rates and prices for the selected group',
+    groupIntroduction: 'Group introduction',
+    groupIntroductionFallback: 'This group has no detailed introduction yet. Available models, parameters, and prices are shown on this page.',
     modelDescription: 'Video generation model',
     modelIntroduction: 'Model introduction',
     modelIntroductionText: 'This model is available for video generation. Capabilities and parameters depend on the selected group and upstream support.',

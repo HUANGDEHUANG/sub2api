@@ -67,6 +67,15 @@
             </div>
 
             <div class="mt-8 space-y-5">
+              <div v-if="selectedGroupIntroductions.length" class="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-4 dark:border-primary-900/40 dark:bg-primary-900/10">
+                <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('videoPlaza.groupIntroduction') }}</h2>
+                <div class="mt-3 space-y-3">
+                  <div v-for="group in selectedGroupIntroductions" :key="group.id">
+                    <p class="text-sm font-medium text-gray-800 dark:text-dark-100">{{ group.name }}</p>
+                    <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-dark-300">{{ group.description || t('videoPlaza.groupIntroductionFallback') }}</p>
+                  </div>
+                </div>
+              </div>
               <div>
                 <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('videoPlaza.modelIntroduction') }}</h2>
                 <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-dark-300">{{ t('videoPlaza.modelIntroductionText') }}</p>
@@ -188,6 +197,23 @@
               </div>
             </div>
 
+            <section
+              v-if="selectedGroupDetails"
+              class="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-4 dark:border-primary-900/40 dark:bg-primary-900/10"
+            >
+              <div class="flex items-start gap-3">
+                <Icon name="infoCircle" size="sm" class="mt-0.5 shrink-0 text-primary-600 dark:text-primary-300" />
+                <div class="min-w-0">
+                  <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+                    {{ t('videoPlaza.groupIntroduction') }}：{{ selectedGroupDetails.name }}
+                  </h2>
+                  <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-dark-300">
+                    {{ selectedGroupDetails.description || t('videoPlaza.groupIntroductionFallback') }}
+                  </p>
+                </div>
+              </div>
+            </section>
+
             <div v-if="cards.length" class="space-y-4">
               <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-dark-200">
                 <Icon name="play" size="sm" class="text-primary-600 dark:text-primary-300" />
@@ -303,6 +329,28 @@ const selectedCard = computed(() => {
   const model = typeof route.query.model === 'string' ? route.query.model : ''
   const platform = typeof route.query.platform === 'string' ? route.query.platform : ''
   return cards.value.find((card) => card.model.name === model && (!platform || card.model.platform === platform)) ?? null
+})
+
+const selectedGroupDetails = computed(() => {
+  if (selectedGroup.value === 'all') return null
+  return props.groups.find((group) => String(group.id) === selectedGroup.value) ?? null
+})
+
+const selectedGroupIntroductions = computed(() => {
+  if (!selectedCard.value) return []
+  const groupIDs = selectedGroup.value === 'all'
+    ? selectedCard.value.model.offers.map((offer) => offer.group_id)
+    : [Number(selectedGroup.value)]
+  const seen = new Set<number>()
+  return groupIDs.reduce<VideoPlazaGroup[]>((result, groupID) => {
+    if (seen.has(groupID)) return result
+    const group = props.groups.find((item) => item.id === groupID)
+    if (group) {
+      seen.add(groupID)
+      result.push(group)
+    }
+    return result
+  }, [])
 })
 
 watch([() => props.groups, cards], () => {
