@@ -1,5 +1,17 @@
 # BUAGA 定制清单
 
+### C-410 压缩请求解压超限不得静默截断
+- 文件：backend/internal/pkg/httputil/body.go
+- 断言："io.LimitReader(reader, maxDecodedBytes+1)"
+- 断言："return nil, &http.MaxBytesError{Limit: maxDecodedBytes}"
+- 断言："decompressRequestBody(enc, raw, maxDecompressedBodySize)"
+
+### C-411 压缩正文边界与完整性回归
+- 文件：backend/internal/pkg/httputil/body_decoded_limit_test.go
+- 断言："TestDecompressRequestBodyRejectsOversizeWithoutTruncation"
+- 断言："TestReadRequestBodyWithPreallocRejectsDecodedOversize"
+- 断言："TestDecompressRequestBodyRejectsCorruptCompressedTrailer"
+
 基线：线上 R3（56d0092e9506b9a560cda8202788225e379befad），比较基准：上游 v0.2.5。
 
 每条同时检查文件和内容。自动登记的源码锚点用于防止文件内部回退；行为仍须由测试和页面验收确认。
