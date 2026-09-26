@@ -786,12 +786,12 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const imageWorkbench = customMenuItemsForUser.value.find((item) => item.id === '97370c95df45cba1')
   const remainingCustomMenuItems = customMenuItemsForUser.value.filter((item) => !isAccessDocsItem(item) && item.id !== imageWorkbench?.id)
   if (withDashboard) {
-    items.push(
-      { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-      { path: '/video-model-plaza?embedded=1', label: t('videoPlaza.title'), icon: VideoPlazaIcon },
-      { path: '/video-docs?embedded=1', label: t('videoDocs.shortTitle'), icon: DocumentIcon },
-    )
+    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
+  items.push(
+    { path: '/video-model-plaza?embedded=1', label: t('videoPlaza.title'), icon: VideoPlazaIcon },
+    { path: '/video-docs?embedded=1', label: t('videoDocs.shortTitle'), icon: DocumentIcon },
+  )
   if (imageWorkbench) {
     items.push({ path: `/custom/${imageWorkbench.id}`, label: imageWorkbench.label, icon: BatchImageIcon, recommended: true })
   }

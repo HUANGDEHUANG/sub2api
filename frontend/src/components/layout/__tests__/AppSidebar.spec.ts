@@ -23,6 +23,9 @@ describe('AppSidebar video and scheduler icons', () => {
     expect(componentSource).toContain("path: '/video-docs?embedded=1'")
     expect(componentSource).toContain('icon: VideoPlazaIcon')
     expect(componentSource).toContain('icon: DocumentIcon')
+    expect(componentSource).toMatch(
+      /if \(withDashboard\) \{[\s\S]*items\.push\(\{ path: '\/dashboard',[\s\S]*?\}\)\s+\}\s+items\.push\(\s+\{ path: '\/video-model-plaza\?embedded=1'/
+    )
   })
 
   it('does not add the user-facing video links to the admin navigation', () => {
