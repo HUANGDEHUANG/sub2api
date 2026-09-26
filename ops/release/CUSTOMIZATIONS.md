@@ -2693,3 +2693,7 @@
 ### C-380 frontend/src/views/user/__tests__/UsageView.spec.ts
 - 文件：frontend/src/views/user/__tests__/UsageView.spec.ts
 - 断言："list.mockResolvedValue({ items: [{ id: 1, name: 'demo-key' }] })"
+### C-416 DeepSeek 缓存命中用量兼容
+- 文件：backend/internal/service/openai_gateway_response_handling.go
+- 断言："value.Get(\"prompt_cache_hit_tokens\")"
+- 断言："value.Get(\"input_tokens_details.cached_tokens\")"
