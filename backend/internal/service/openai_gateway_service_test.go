@@ -3669,6 +3669,17 @@ func TestParseSSEUsage_TerminalWithoutUsageKeepsFallback(t *testing.T) {
 	require.Equal(t, 5, usage.OutputTokens)
 }
 
+func TestParseSSEUsage_DeepSeekPromptCacheHitTokens(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	usage := &OpenAIUsage{}
+
+	svc.parseSSEUsage(`{"type":"response.completed","response":{"usage":{"input_tokens":1200,"output_tokens":30,"prompt_cache_hit_tokens":800,"prompt_cache_miss_tokens":400}}}`, usage)
+
+	require.Equal(t, 1200, usage.InputTokens)
+	require.Equal(t, 30, usage.OutputTokens)
+	require.Equal(t, 800, usage.CacheReadInputTokens)
+}
+
 func TestExtractOpenAIUsageFromJSONBytes_AcceptsResponseAndChatUsageShapes(t *testing.T) {
 	usage, ok := extractOpenAIUsageFromJSONBytes([]byte(`{"id":"resp_1","usage":{"input_tokens":9,"output_tokens":5,"input_tokens_details":{"cached_tokens":2,"cache_write_tokens":4}}}`))
 	require.True(t, ok)
@@ -3699,6 +3710,14 @@ func TestExtractOpenAIUsageFromJSONBytes_AcceptsResponseAndChatUsageShapes(t *te
 	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":20,"output_tokens":2,"cache_read_input_tokens":19,"input_tokens_details":{"cached_tokens":0}}}`))
 	require.True(t, ok)
 	require.Zero(t, usage.CacheReadInputTokens, "官方嵌套缓存读取字段显式为零时仍应优先于兼容顶层别名")
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"prompt_tokens":1200,"completion_tokens":30,"prompt_cache_hit_tokens":800,"prompt_cache_miss_tokens":400}}`))
+	require.True(t, ok)
+	require.Equal(t, 800, usage.CacheReadInputTokens)
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":1200,"output_tokens":30,"input_tokens_details":{"cached_tokens":0},"prompt_cache_hit_tokens":800}}`))
+	require.True(t, ok)
+	require.Zero(t, usage.CacheReadInputTokens, "标准嵌套字段显式为零时仍应优先于 DeepSeek 兼容字段")
 
 	// xAI reports reasoning_tokens outside visible output_tokens. Only the
 	// arithmetic-consistent shape is independent; OpenAI's canonical shape

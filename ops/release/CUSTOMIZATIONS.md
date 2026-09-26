@@ -2709,3 +2709,8 @@
 - 文件：backend/internal/handler/admin/usage_video.go
 - 断言："ServeCachedAdminVideoPreview(c, log)"
 - 断言："video account is unavailable"
+
+### C-416 DeepSeek 缓存命中用量兼容
+- 文件：backend/internal/service/openai_gateway_response_handling.go
+- 断言："value.Get(\"prompt_cache_hit_tokens\")"
+- 断言："value.Get(\"input_tokens_details.cached_tokens\")"
