@@ -11,3 +11,5 @@ No SQL migration files change. Before starting the candidate, verify the full mi
 Release only through a reviewed production tag and `package.py` / `git archive`. Required validation: all 416 customization guards and guard tests, backend build/full unit and focused race, frontend typecheck/lint/full unit/build. Deploy on 18208, retain 18207 for in-flight requests and rollback, publish hashed frontend assets additively, gracefully reload Nginx and rebind the price monitor with authenticated read validation. Sample health across the switch.
 
 Operational evidence belongs in `/home/serveradmin/releases/buaga-v029-custom-20260928`; the workspace deployment report records the final results and release identifiers.
+
+The broad focused race run exposed existing parallel tests concurrently calling Gin's global `SetMode` in unchanged bridge-test files. Run this selection with `-parallel=1` to isolate test-global state while retaining the race detector and concurrency inside each test; retain both logs. No application race was inferred from that test-harness collision.
