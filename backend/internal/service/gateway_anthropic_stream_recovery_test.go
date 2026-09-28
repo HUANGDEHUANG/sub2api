@@ -66,3 +66,47 @@ func TestAnthropicStreamRecovery_ProbeAndCancellation(t *testing.T) {
 	release()
 	require.Empty(t, state.snapshot(time.Now()))
 }
+
+func TestAnthropicStreamFailoverPolicy_PermissionErrorIsModelScoped(t *testing.T) {
+	repo := &modelNotFoundAccountRepoStub{}
+	svc := &RateLimitService{accountRepo: repo}
+	account := &Account{ID: 42, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true}
+
+	handled := applyAnthropicStreamFailoverPolicy(
+		context.Background(),
+		svc,
+		account,
+		"claude-sonnet-4-6",
+		http.StatusForbidden,
+		[]byte(`{"type":"error","error":{"type":"permission_error","message":"model is not enabled"}}`),
+		http.Header{},
+	)
+
+	require.True(t, handled)
+	require.Zero(t, repo.tempCalls)
+	require.Len(t, repo.modelRateLimitCalls, 1)
+	require.Equal(t, int64(42), repo.modelRateLimitCalls[0].accountID)
+	require.Equal(t, "claude-sonnet-4-6", repo.modelRateLimitCalls[0].scope)
+	require.Equal(t, anthropicModelPermissionReason, repo.modelRateLimitCalls[0].reason)
+	require.WithinDuration(t, time.Now().Add(anthropicModelPermissionCooldown), repo.modelRateLimitCalls[0].resetAt, 5*time.Second)
+}
+
+func TestAnthropicStreamFailoverPolicy_InvalidRequestDoesNotDisable(t *testing.T) {
+	repo := &modelNotFoundAccountRepoStub{}
+	svc := &RateLimitService{accountRepo: repo}
+	account := &Account{ID: 43, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true}
+
+	handled := applyAnthropicStreamFailoverPolicy(
+		context.Background(),
+		svc,
+		account,
+		"claude-sonnet-4-6",
+		http.StatusBadRequest,
+		[]byte(`{"type":"error","error":{"type":"invalid_request_error","message":"bad request"}}`),
+		http.Header{},
+	)
+
+	require.False(t, handled)
+	require.Zero(t, repo.tempCalls)
+	require.Empty(t, repo.modelRateLimitCalls)
+}

@@ -125,7 +125,14 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 	})
 	shouldDisable := tempUnscheduled
 	if account.Platform != PlatformGrok && !tempUnscheduled {
-		shouldDisable = s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+		if account.IsAnthropicProtocol() {
+			// Native Anthropic responses use Anthropic error.type semantics even
+			// when the transport status is 403/404. Keep model capability failures
+			// scoped to account+model instead of applying OpenAI account policy.
+			shouldDisable = applyAnthropicStreamFailoverPolicy(ctx, s.rateLimitService, account, upstreamModel, resp.StatusCode, respBody, resp.Header)
+		} else {
+			shouldDisable = s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+		}
 	}
 	return s.newOpenAIAccountFailoverError(
 		account,

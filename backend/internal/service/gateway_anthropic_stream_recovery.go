@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +36,94 @@ func classifyAnthropicStreamError(data string) error {
 		return &anthropicStreamFailure{reason: "request_rejected"}
 	default:
 		return &anthropicStreamFailure{reason: "upstream_error_event", transient: true}
+	}
+}
+
+// anthropicStreamErrorStatus converts an Anthropic SSE error event into the
+// HTTP-like status used by the normal failover/rate-limit policy.  Anthropic
+// can return these errors inside an HTTP 200 stream, so callers must classify
+// them before deciding whether another account may be tried.
+func anthropicStreamErrorStatus(data string) int {
+	switch gjson.Get(data, "error.type").String() {
+	case "not_found_error":
+		return http.StatusNotFound
+	case "authentication_error", "permission_error":
+		return http.StatusForbidden
+	case "rate_limit_error":
+		return http.StatusTooManyRequests
+	case "overloaded_error":
+		return 529
+	case "invalid_request_error", "request_too_large":
+		return http.StatusBadRequest
+	default:
+		return http.StatusBadGateway
+	}
+}
+
+func newAnthropicStreamFailoverError(data string) *UpstreamFailoverError {
+	return &UpstreamFailoverError{
+		StatusCode:   anthropicStreamErrorStatus(data),
+		ResponseBody: []byte(data),
+	}
+}
+
+func anthropicStreamHasSemanticOutput(data string) bool {
+	if gjson.Get(data, "type").String() == "content_block_start" {
+		block := gjson.Get(data, "content_block")
+		return block.Get("text").String() != "" || block.Get("thinking").String() != ""
+	}
+	if gjson.Get(data, "type").String() != "content_block_delta" {
+		return false
+	}
+	delta := gjson.Get(data, "delta")
+	for _, key := range []string{"text", "thinking", "partial_json"} {
+		if delta.Get(key).String() != "" {
+			return true
+		}
+	}
+	return false
+}
+
+const (
+	anthropicModelPermissionCooldown = 10 * time.Minute
+	anthropicModelPermissionReason   = "anthropic_model_permission_error"
+)
+
+// applyAnthropicStreamFailoverPolicy keeps deterministic Anthropic model
+// capability failures scoped to the selected account+model pair.  A generic
+// 403 handler would otherwise pause or disable the whole account, which also
+// removes unrelated Claude models from scheduling.
+func applyAnthropicStreamFailoverPolicy(ctx context.Context, rateLimitService *RateLimitService, account *Account, model string, statusCode int, body []byte, headers http.Header) bool {
+	// The production service always has an account repository.  Keep the
+	// streaming classifier usable in isolated/unit contexts too: calling the
+	// policy with a zero-value RateLimitService would panic in the auth/error
+	// handlers that persist account state.
+	if rateLimitService == nil || rateLimitService.accountRepo == nil || account == nil {
+		return false
+	}
+
+	kind := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.type").String()))
+	switch kind {
+	case "invalid_request_error", "request_too_large":
+		// Client/request errors are not account availability failures.
+		return false
+	case "not_found_error":
+		return rateLimitService.HandleUpstreamModelNotFound(ctx, account, model, statusCode, body)
+	case "permission_error":
+		modelKey := modelRateLimitKeyForUpstreamModelNotFound(ctx, account, model)
+		if modelKey == "" {
+			return false
+		}
+		resetAt := time.Now().Add(anthropicModelPermissionCooldown)
+		if err := rateLimitService.accountRepo.SetModelRateLimit(ctx, account.ID, modelKey, resetAt, anthropicModelPermissionReason); err != nil {
+			// Fail over even if persistence failed.  Widening this to an account
+			// block would make a transient DB problem more destructive.
+			logger.FromContext(ctx).Warn("gateway.anthropic_model_permission_cooldown_persist_failed",
+				zap.Int64("account_id", account.ID), zap.String("model", modelKey), zap.Error(err))
+		}
+		return true
+	default:
+		return rateLimitService.HandleUpstreamError(ctx, account, statusCode, headers, body, model)
 	}
 }
 
