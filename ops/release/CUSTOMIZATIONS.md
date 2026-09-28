@@ -1,5 +1,12 @@
 # BUAGA 定制清单
 
+### C-417 升级保持渠道图片空价的既有扣费口径
+- 文件：backend/internal/service/model_pricing_resolver.go
+- 断言："resolved.BasePricing.ImageOutputPricePerToken = 0"
+- 断言："resolved.BasePricing.ImageOutputPriceExplicit = true"
+- 断言："func applyChannelImageInputPrice(chPricing *ChannelModelPricing, pricing *ModelPricing)"
+- 说明：v0.2.9 目录图片价自动继承不适用于此次保持现有扣费口径的升级；显式图片价格与原有回退规则保留。
+
 ### C-410 压缩请求解压超限不得静默截断
 - 文件：backend/internal/pkg/httputil/body.go
 - 断言："io.LimitReader(reader, maxDecodedBytes+1)"
@@ -178,7 +185,7 @@
 
 ### C-001 backend/cmd/server/VERSION
 - 文件：backend/cmd/server/VERSION
-- 断言："0.2.8"
+- 断言："0.2.9"
 
 
 ### C-002 backend/cmd/server/wire_gen.go

@@ -103,7 +103,7 @@ func (s *OpenAIGatewayService) ResolveVideoTaskCost(ctx context.Context, input *
 	}
 	if key.GroupID != nil {
 		applyAccountStatsCost(ctx, &log, s.channelService, s.billingService, account.ID, *key.GroupID,
-			result.UpstreamModel, result.Model, UsageTokens{}, cost.TotalCost, pricingAt)
+			result.UpstreamModel, result.Model, UsageTokens{}, cost.TotalCost, pricingAt, true)
 	}
 	p := &postUsageBillingParams{
 		Cost: cost, User: user, APIKey: key, Account: account, Subscription: input.Subscription,
