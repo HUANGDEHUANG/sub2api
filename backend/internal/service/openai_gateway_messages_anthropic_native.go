@@ -428,7 +428,7 @@ func (s *OpenAIGatewayService) handleNativeAnthropicStreamingResponse(
 		if s != nil {
 			applyAnthropicStreamFailoverPolicy(ctx, s.rateLimitService, account, upstreamModel, status, body, resp.Header)
 		}
-		failoverErr := s.newOpenAIAccountFailoverError(account, status, resp.Header, body, strings.TrimSpace(extractUpstreamErrorMessage(body)), false, false)
+		failoverErr := markAnthropicModelScopedFailover(s.newOpenAIAccountFailoverError(account, status, resp.Header, body, strings.TrimSpace(extractUpstreamErrorMessage(body)), false, false), body)
 		if fallback != nil {
 			return fmt.Errorf("%w: %v", failoverErr, fallback)
 		}

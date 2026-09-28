@@ -538,7 +538,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		if status >= http.StatusInternalServerError || status == http.StatusForbidden || status == http.StatusTooManyRequests {
 			s.recordAnthropicStreamFailure(ctx, account, model, &anthropicStreamFailure{reason: "upstream_stream_failover", transient: true})
 		}
-		failoverErr := &UpstreamFailoverError{StatusCode: status, ResponseBody: body}
+		failoverErr := markAnthropicModelScopedFailover(&UpstreamFailoverError{StatusCode: status, ResponseBody: body}, body)
 		if fallback != nil {
 			return fmt.Errorf("%w: %v", failoverErr, fallback)
 		}

@@ -110,3 +110,15 @@ func TestAnthropicStreamFailoverPolicy_InvalidRequestDoesNotDisable(t *testing.T
 	require.Zero(t, repo.tempCalls)
 	require.Empty(t, repo.modelRateLimitCalls)
 }
+
+func TestAnthropicModelScopedFailoverDoesNotReportAccountFailure(t *testing.T) {
+	err := markAnthropicModelScopedFailover(
+		&UpstreamFailoverError{StatusCode: http.StatusForbidden},
+		[]byte(`{"type":"error","error":{"type":"permission_error"}}`),
+	)
+
+	require.Equal(t, GatewayFailureScopeRequest, err.Scope)
+	require.Equal(t, GatewayFailureReason(anthropicModelPermissionReason), err.Reason)
+	require.False(t, err.ShouldReportAccountScheduleFailure())
+	require.True(t, err.ShouldRetryNextAccount())
+}
