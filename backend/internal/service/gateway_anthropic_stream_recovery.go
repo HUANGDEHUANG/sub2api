@@ -87,7 +87,35 @@ func anthropicStreamHasSemanticOutput(data string) bool {
 const (
 	anthropicModelPermissionCooldown = 10 * time.Minute
 	anthropicModelPermissionReason   = "anthropic_model_permission_error"
+	anthropicModelNotFoundReason     = "anthropic_model_not_found"
 )
+
+// anthropicModelScopedFailoverReason identifies deterministic model capability
+// failures whose scheduler side effect is already persisted per account+model.
+// The returned reason is copied onto the failover sentinel so the outer handler
+// does not report the failure as an account-wide scheduling outage.
+func anthropicModelScopedFailoverReason(body []byte) GatewayFailureReason {
+	switch strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.type").String())) {
+	case "not_found_error":
+		return anthropicModelNotFoundReason
+	case "permission_error":
+		return anthropicModelPermissionReason
+	default:
+		return ""
+	}
+}
+
+func markAnthropicModelScopedFailover(err *UpstreamFailoverError, body []byte) *UpstreamFailoverError {
+	if err == nil {
+		return nil
+	}
+	if reason := anthropicModelScopedFailoverReason(body); reason != "" {
+		err.Scope = GatewayFailureScopeRequest
+		err.Reason = reason
+		err.NextAccountAction = NextAccountRetry
+	}
+	return err
+}
 
 // applyAnthropicStreamFailoverPolicy keeps deterministic Anthropic model
 // capability failures scoped to the selected account+model pair.  A generic
