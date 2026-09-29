@@ -73,7 +73,7 @@ type geminiUsageTotalsBatchProvider interface {
 const geminiPrecheckCacheTTL = time.Minute
 
 const (
-	defaultRateLimit429CooldownSeconds = 5
+	defaultRateLimit429CooldownSeconds = 60
 	maxRateLimit429CooldownSeconds     = 7200
 )
 
