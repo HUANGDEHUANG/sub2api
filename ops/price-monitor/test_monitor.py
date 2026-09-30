@@ -30,6 +30,7 @@ from monitor import (
     format_account_change,
     is_image2_account,
     is_image2_managed_group,
+    is_guomo_collection_account,
     plan_account_renames,
     plan_account_priorities,
     plan_account_auto_groups,
@@ -47,6 +48,18 @@ from monitor import (
 
 
 class MonitorTests(unittest.TestCase):
+    def test_guomo_collection_accounts_are_excluded_from_automatic_renames(self):
+        account = {
+            "name": "llmroute-0.11",
+            "managed_groups": [{"group_id": 65, "name": "国模合集分组"}],
+        }
+        pricing = {"1": {"scope": "account_authorized", "groups": {"国模合集": "0.2"}}}
+
+        self.assertTrue(is_guomo_collection_account(account))
+        candidates, stable = plan_account_renames({"1": account}, pricing, {})
+        self.assertEqual(candidates, {})
+        self.assertEqual(stable, [])
+
     def test_profitable_groups_only_match_gpt_and_plus_whitelists(self):
         groups = {
             5: {"group_id": 5, "name": "Gpt-plus", "rate_multiplier": "0.088", "status": "active"},

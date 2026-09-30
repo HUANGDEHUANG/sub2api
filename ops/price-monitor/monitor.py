@@ -392,6 +392,15 @@ def is_domestic_model_account(account: dict[str, Any]) -> bool:
     )
 
 
+def is_guomo_collection_account(account: dict[str, Any]) -> bool:
+    """Exclude accounts in the Guomo collection from automatic renaming."""
+    return any(
+        "国模合集" in str(group.get("name") or "")
+        for group in account.get("managed_groups", [])
+        if isinstance(group, dict)
+    )
+
+
 def single_group_ratio(pricing: dict[str, Any]) -> str | None:
     groups = pricing.get("groups", {})
     if not isinstance(groups, dict) or len(groups) != 1:
@@ -1290,7 +1299,7 @@ def plan_account_renames(
     stable: list[dict[str, str]] = []
     immediate_account_ids = immediate_account_ids or set()
     for account_id, account in accounts.items():
-        if is_account_automation_excluded(account.get("name")):
+        if is_account_automation_excluded(account.get("name")) or is_guomo_collection_account(account):
             continue
         pricing = upstream_pricing.get(account_id, {})
         if pricing.get("scope") != "account_authorized":
