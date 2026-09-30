@@ -25,6 +25,9 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 // as protocol data for compatible upstreams that require its replay.
 // OpenAI destinations retain the legacy text representation.
 func ChatCompletionsToResponsesWithReasoningReplay(req *ChatCompletionsRequest, replay bool) (*ResponsesRequest, error) {
+	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, req.ReasoningEffort); err != nil {
+		return nil, err
+	}
 	var input []ResponsesInputItem
 	if replay {
 		for _, message := range req.Messages {
