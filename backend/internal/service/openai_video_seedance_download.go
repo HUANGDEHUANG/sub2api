@@ -2,11 +2,14 @@ package service
 
 import (
 	"fmt"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 )
+
+const aliyunVideoResultHost = "*.aliyuncs.com"
 
 func (s *OpenAIGatewayService) zhongYVideoDownloadURL(account *Account, raw string) (string, error) {
 	base, err := url.Parse(account.GetOpenAIBaseURL())
@@ -26,9 +29,45 @@ func (s *OpenAIGatewayService) zhongYVideoDownloadURL(account *Account, raw stri
 		return "", fmt.Errorf("video download URL rejected")
 	}
 	if _, err = s.validateOutboundURL(target.String()); err != nil {
-		return "", fmt.Errorf("video download URL rejected by outbound policy")
+		if !isAliyunVideoResultHost(target.Hostname()) || !isAliyunVideoProviderAccount(account) || s.cfg == nil || !s.cfg.Security.URLAllowlist.Enabled {
+			return "", fmt.Errorf("video download URL rejected by outbound policy")
+		}
+		// Wan3 returns signed media URLs from Aliyun OSS. Allow this provider
+		// domain for video result downloads only; the shared transport still
+		// enforces public DNS destinations and redirect checks.
+		allowedHosts := append([]string(nil), s.cfg.Security.URLAllowlist.UpstreamHosts...)
+		allowedHosts = append(allowedHosts, aliyunVideoResultHost)
+		if _, err = urlvalidator.ValidateHTTPSURL(target.String(), urlvalidator.ValidationOptions{
+			AllowedHosts:           allowedHosts,
+			RequireAllowlist:       true,
+			AllowPrivate:           s.cfg.Security.URLAllowlist.AllowPrivateHosts,
+			AllowInsecureHTTPHosts: s.cfg.Security.URLAllowlist.AllowInsecureHTTPHosts,
+		}); err != nil {
+			return "", fmt.Errorf("video download URL rejected by outbound policy")
+		}
 	}
 	return target.String(), nil
+}
+
+func isAliyunVideoProviderAccount(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	base, err := url.Parse(account.GetOpenAIBaseURL())
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(base.Hostname()))
+	return host != "" && host != "aliyuncs.com" && strings.HasSuffix(host, ".aliyuncs.com")
+}
+
+func isAliyunVideoResultHost(host string) bool {
+	_, err := urlvalidator.ValidateHTTPSURL("https://"+host, urlvalidator.ValidationOptions{
+		AllowedHosts:     []string{aliyunVideoResultHost},
+		RequireAllowlist: true,
+		AllowPrivate:     false,
+	})
+	return err == nil
 }
 
 // These are public/signed result links, not API calls. Never attach account
