@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAIVideoSeedanceSignedContentRedirectNoCredentials(t *testing.T) {
@@ -40,6 +41,28 @@ func TestOpenAIVideoSeedanceDownloadBlocksPrivateAndUnsafeURLs(t *testing.T) {
 	for _, target := range []string{"http://cdn.example/video", "https://127.0.0.1/video", "https://169.254.169.254/metadata", "https://user:pass@cdn.example/video", "https://localhost/video"} {
 		_, err := svc.zhongYVideoDownloadURL(seedanceAccount(), target)
 		require.Error(t, err)
+	}
+}
+
+func TestOpenAIVideoAllowsAliyunResultHostOnlyForAliyunProviderAccount(t *testing.T) {
+	svc := &OpenAIGatewayService{cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
+		Enabled:       true,
+		UpstreamHosts: []string{"api.aliyun.com"},
+	}}}}
+
+	account := seedanceAccount()
+	account.Credentials["base_url"] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	target, err := svc.zhongYVideoDownloadURL(account, "https://dashscope-result-shanghai.oss-cn-shanghai.aliyuncs.com/video.mp4?signature=redacted")
+	require.NoError(t, err)
+	require.Contains(t, target, "dashscope-result-shanghai.oss-cn-shanghai.aliyuncs.com")
+
+	account.Credentials["base_url"] = "https://relay.example/v1"
+	_, err = svc.zhongYVideoDownloadURL(account, "https://dashscope-result-shanghai.oss-cn-shanghai.aliyuncs.com/video.mp4")
+	require.Error(t, err, "non-Aliyun upstream accounts must not inherit the exception")
+
+	for _, host := range []string{"aliyuncs.com.evil.example", "evilaliyuncs.com"} {
+		_, err := svc.zhongYVideoDownloadURL(account, "https://"+host+"/video.mp4")
+		require.Error(t, err, "host %q must not be allowed", host)
 	}
 }
 
