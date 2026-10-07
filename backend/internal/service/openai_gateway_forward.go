@@ -1392,6 +1392,20 @@ func shouldForwardOpenAIResponsesViaRawChatCompletions(account *Account) bool {
 	return !openai_compat.ShouldUseResponsesAPI(account.Extra)
 }
 
+// requestContainsVideoInput reports whether a Chat Completions request has a
+// typed video_url content part. It intentionally only inspects the standard
+// messages/content shape; Responses-shaped requests are handled separately.
+func requestContainsVideoInput(body []byte) bool {
+	for _, message := range gjson.GetBytes(body, "messages").Array() {
+		for _, part := range message.Get("content").Array() {
+			if strings.EqualFold(strings.TrimSpace(part.Get("type").String()), "video_url") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
 	// Determine target URL based on account type
 	var targetURL string
