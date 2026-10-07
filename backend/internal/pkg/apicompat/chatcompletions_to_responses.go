@@ -413,6 +413,14 @@ func convertChatContentPartsToResponses(parts []ChatContentPart) []ResponsesCont
 					ImageURL:              p.ImageURL.URL,
 				})
 			}
+		case "video_url":
+			if p.VideoURL != nil && strings.TrimSpace(p.VideoURL.URL) != "" {
+				responseParts = append(responseParts, ResponsesContentPart{
+					PromptCacheBreakpoint: p.PromptCacheBreakpoint,
+					Type:                  "input_video",
+					VideoURL:              p.VideoURL.URL,
+				})
+			}
 		case "file":
 			if p.File != nil && (p.File.FileData != "" || p.File.FileID != "") {
 				responseParts = append(responseParts, ResponsesContentPart{

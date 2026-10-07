@@ -312,9 +312,10 @@ func (i *ResponsesInputItem) UnmarshalJSON(data []byte) error {
 // ResponsesContentPart is a typed content part in a Responses message.
 type ResponsesContentPart struct {
 	PromptCacheBreakpoint json.RawMessage `json:"prompt_cache_breakpoint,omitempty"`
-	Type                  string          `json:"type"` // "input_text" | "output_text" | "input_image" | "input_file"
+	Type                  string          `json:"type"` // "input_text" | "output_text" | "input_image" | "input_video" | "input_file"
 	Text                  string          `json:"text,omitempty"`
 	ImageURL              string          `json:"image_url,omitempty"` // data URI for input_image
+	VideoURL              string          `json:"video_url,omitempty"` // URL for input_video
 
 	// input_file fields.
 	Filename string `json:"filename,omitempty"`
@@ -703,9 +704,10 @@ type ChatMessage struct {
 // ChatContentPart is a typed content part in a multi-modal message.
 type ChatContentPart struct {
 	PromptCacheBreakpoint json.RawMessage `json:"prompt_cache_breakpoint,omitempty"`
-	Type                  string          `json:"type"` // "text" | "image_url" | "file"
+	Type                  string          `json:"type"` // "text" | "image_url" | "video_url" | "file"
 	Text                  string          `json:"text,omitempty"`
 	ImageURL              *ChatImageURL   `json:"image_url,omitempty"`
+	VideoURL              *ChatVideoURL   `json:"video_url,omitempty"`
 	File                  *ChatFile       `json:"file,omitempty"`
 }
 
@@ -713,6 +715,11 @@ type ChatContentPart struct {
 type ChatImageURL struct {
 	URL    string `json:"url"`
 	Detail string `json:"detail,omitempty"` // "auto" | "low" | "high"
+}
+
+// ChatVideoURL contains the URL for a video content part.
+type ChatVideoURL struct {
+	URL string `json:"url"`
 }
 
 // ChatFile contains the payload of a "file" content part (e.g. PDF input).
