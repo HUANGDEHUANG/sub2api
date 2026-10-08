@@ -39,6 +39,10 @@ func beginOpenAIVideoSubmission(c *gin.Context, starter openAIVideoSubmissionSta
 	}
 	if taskID != "" {
 		service.MarkResponseCommitted(c)
+		if key.Group != nil && key.Group.Platform == service.PlatformGrok {
+			c.JSON(http.StatusAccepted, gin.H{"request_id": taskID, "status": "pending"})
+			return false
+		}
 		c.JSON(http.StatusAccepted, gin.H{"id": taskID, "object": "video", "status": "queued"})
 		return false
 	}
@@ -118,7 +122,11 @@ func allowDurableOpenAIVideoForward(c *gin.Context, lookup durableOpenAIVideoLoo
 		// Keep status pollers on the original task while the content gate stays closed.
 		service.MarkResponseCommitted(c)
 		c.Header("Cache-Control", "private, no-store")
-		c.JSON(http.StatusOK, gin.H{"id": latest.TaskID, "object": "video", "status": "in_progress", "status_detail": detail, "message": message})
+		if account.Platform == service.PlatformGrok {
+			c.JSON(http.StatusOK, gin.H{"request_id": latest.TaskID, "status": "pending", "status_detail": detail, "message": message})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"id": latest.TaskID, "object": "video", "status": "in_progress", "status_detail": detail, "message": message})
+		}
 		return false
 	}
 	if latest.State == service.VideoTaskReady {

@@ -215,7 +215,7 @@ func (s *OpenAIGatewayService) pollDurableVideoTask(ctx context.Context, t *Vide
 	if err != nil {
 		return nil, "", err
 	}
-	if account == nil || account.ID != t.AccountID || account.Platform != PlatformOpenAI {
+	if account == nil || account.ID != t.AccountID || !durableVideoPlatform(account.Platform) {
 		return nil, "", errors.New("pinned OpenAI video account unavailable")
 	}
 	if err := ValidateDurableVideoTaskAccount(t, account); err != nil {
@@ -257,6 +257,12 @@ func (s *OpenAIGatewayService) pollDurableVideoTask(ctx context.Context, t *Vide
 		}
 	}
 	completion, err := durableVideoCompletion(t, result, time.Now())
+	if err == nil && account.Platform == PlatformGrok {
+		// Grok status often omits model; its legacy parser supplies a family
+		// default. Preserve the actually accepted model instead of that default.
+		completion.Model = t.Pending.Model
+		completion.BillingModel = firstNonEmpty(t.Pending.BillingModel, t.Pending.Model)
+	}
 	return completion, "", err
 }
 
@@ -312,7 +318,7 @@ func (s *OpenAIGatewayService) billDurableVideoTask(ctx context.Context, t *Vide
 	if err != nil {
 		return err
 	}
-	if account == nil || account.ID != t.AccountID || account.Platform != PlatformOpenAI {
+	if account == nil || account.ID != t.AccountID || !durableVideoPlatform(account.Platform) {
 		return errors.New("video task account mismatch")
 	}
 	if err := ValidateDurableVideoTaskAccount(t, account); err != nil {
@@ -356,7 +362,7 @@ func durableVideoUsageInput(t *VideoTask) (*OpenAIRecordUsageInput, error) {
 	return &OpenAIRecordUsageInput{
 		RequireAtomicVideo: true, VideoTaskCost: t.CostSnapshot,
 		Result:    &OpenAIForwardResult{RequestID: StableGrokVideoBillingRequestID(t.TaskID), ResponseID: t.TaskID, Model: c.Model, BillingModel: c.BillingModel, UpstreamModel: c.UpstreamModel, UpstreamResponseModel: c.UpstreamResponseModel, UpstreamEndpoint: c.UpstreamEndpoint, VideoCount: 1, VideoResolution: c.VideoResolution, VideoDurationSeconds: c.VideoDurationSeconds, Usage: c.Usage, Duration: c.Duration},
-		PricingAt: pricingAt, RequestPayloadHash: HashUsageRequestPayload([]byte(t.TaskID)), QuotaPlatform: PlatformOpenAI,
+		PricingAt: pricingAt, RequestPayloadHash: HashUsageRequestPayload([]byte(t.TaskID)), QuotaPlatform: t.CostSnapshot.QuotaPlatform,
 		InboundEndpoint: "/v1/videos", UpstreamEndpoint: c.UpstreamEndpoint,
 		ChannelUsageFields: ChannelUsageFields{OriginalModel: t.Pending.OriginalModel, ChannelMappedModel: t.Pending.Model},
 	}, nil

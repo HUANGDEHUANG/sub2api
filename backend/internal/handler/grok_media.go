@@ -128,10 +128,17 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		return
 	}
 	var durableTask *service.VideoTask
-	if requestPlatform == service.PlatformOpenAI && !endpoint.IsSeedance() && endpoint.IsVideoLookupRequest() {
+	durableGrokCreate := requestPlatform == service.PlatformGrok && endpoint == service.GrokMediaEndpointVideosGenerations && h.gatewayService.GrokVideoDurableSettlementEnabled()
+	if !endpoint.IsSeedance() && endpoint.IsVideoLookupRequest() {
 		// Always check durable ownership, even on a Redis hit: otherwise cached
 		// new tasks could bypass settlement through the legacy billing path.
 		durableTask, err = h.gatewayService.LoadDurableVideoTask(c.Request.Context(), requestID, subject.UserID, apiKey.ID)
+		// Older embedded deployments without the durable repository keep their
+		// legacy path while enrollment is disabled. Actual database errors must
+		// fail closed; they must never allow bypassing a saved settlement gate.
+		if requestPlatform == service.PlatformGrok && !h.gatewayService.GrokVideoDurableSettlementEnabled() && errors.Is(err, service.ErrVideoTaskRepositoryUnavailable) {
+			err = nil
+		}
 		if err != nil {
 			h.errorResponse(c, http.StatusServiceUnavailable, "video_task_unavailable", "Video task tracking is temporarily unavailable")
 			return
@@ -204,7 +211,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	}
 	defer inflightDone()
 
-	if requestPlatform == service.PlatformOpenAI && !endpoint.IsSeedance() && isGrokVideoCreateEndpoint(endpoint) {
+	if durableGrokCreate || (requestPlatform == service.PlatformOpenAI && !endpoint.IsSeedance() && isGrokVideoCreateEndpoint(endpoint)) {
 		if !h.beginOpenAIVideoSubmission(c, apiKey, contentType, body) {
 			return
 		}
@@ -272,9 +279,15 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		var selection *service.AccountSelectionResult
 		var scheduleDecision service.OpenAIAccountScheduleDecision
 		var err error
-		pinnedOpenAILookup := requestPlatform == service.PlatformOpenAI && !endpoint.IsSeedance() && endpoint.IsVideoLookupRequest()
+		pinnedOpenAILookup := (durableTask != nil || requestPlatform == service.PlatformOpenAI) && !endpoint.IsSeedance() && endpoint.IsVideoLookupRequest()
 		if pinnedOpenAILookup {
-			account, lookupErr := h.gatewayService.GetOpenAIVideoLookupAccount(requestCtx, boundLookupAccountID)
+			var account *service.Account
+			var lookupErr error
+			if durableTask != nil {
+				account, lookupErr = h.gatewayService.GetDurableVideoLookupAccount(requestCtx, boundLookupAccountID)
+			} else {
+				account, lookupErr = h.gatewayService.GetOpenAIVideoLookupAccount(requestCtx, boundLookupAccountID)
+			}
 			if lookupErr != nil {
 				h.errorResponse(c, http.StatusServiceUnavailable, "video_account_unavailable", "Video task account is temporarily unavailable")
 				return
@@ -450,6 +463,26 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				if endpoint.IsSeedance() {
 					return h.gatewayService.ForwardSeedance(requestCtx, c, account, endpoint, requestID, body)
 				}
+				if durableGrokCreate && account.Platform == service.PlatformGrok {
+					var quote *service.VideoTaskCostSnapshot
+					return h.gatewayService.ForwardGrokVideoCreate(requestCtx, c, account, endpoint, "", body, contentType,
+						func(created *service.OpenAIForwardResult) error {
+							pending := service.GrokVideoPendingBilling{Platform: account.Platform, Model: requestModel, BillingModel: firstNonEmptyString(created.BillingModel, requestModel), UpstreamModel: created.UpstreamModel, VideoResolution: created.VideoResolution, VideoDurationSeconds: created.VideoDurationSeconds, OriginalModel: clientRequestedModel(c, requestModel), CreatedAt: videoCreateStartedAt}
+							saveCtx, cancel := context.WithTimeout(context.WithoutCancel(requestCtx), 15*time.Second)
+							defer cancel()
+							if err := h.gatewayService.PersistDurableVideoTask(saveCtx, created.ResponseID, apiKey, account, subscription, pending, quote); err != nil {
+								return err
+							}
+							return h.gatewayService.CompleteVideoSubmission(saveCtx, apiKey.ID, c.GetHeader("Idempotency-Key"), created.ResponseID)
+						}, func(normalized *service.OpenAIForwardResult) error {
+							pricingAt, err := time.Parse(time.RFC3339Nano, videoCreateStartedAt)
+							if err != nil {
+								return err
+							}
+							quote, err = h.gatewayService.ResolveVideoTaskCost(requestCtx, &service.OpenAIRecordUsageInput{RequireAtomicVideo: true, Result: normalized, APIKey: apiKey, User: apiKey.User, Account: account, Subscription: subscription, APIKeyService: h.apiKeyService, PricingAt: pricingAt, QuotaPlatform: service.PlatformGrok, InboundEndpoint: "/v1/videos", UpstreamEndpoint: normalized.UpstreamEndpoint, ChannelUsageFields: service.ChannelUsageFields{OriginalModel: clientRequestedModel(c, requestModel), ChannelMappedModel: requestModel}})
+							return err
+						})
+				}
 				if account.Platform == service.PlatformOpenAI && isGrokVideoCreateEndpoint(endpoint) {
 					var quote *service.VideoTaskCostSnapshot
 					return h.gatewayService.ForwardOpenAIVideoCreate(requestCtx, c, account, body, contentType,
@@ -599,7 +632,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		h.gatewayService.ReportOpenAIAccountScheduleResult(account, grokMediaScheduleModel(account, routingModel, result), true, nil)
 		shouldBindLegacyVideoTask := false
 		if account.Platform != service.PlatformOpenAI && isGrokVideoCreateEndpoint(endpoint) && strings.TrimSpace(result.ResponseID) != "" {
-			shouldBindLegacyVideoTask = true
+			shouldBindLegacyVideoTask = !durableGrokCreate
 		}
 		if endpoint == service.SeedanceEndpointCreate && strings.TrimSpace(result.ResponseID) != "" {
 			shouldBindLegacyVideoTask = true

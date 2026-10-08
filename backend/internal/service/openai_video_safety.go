@@ -29,6 +29,17 @@ func openAIVideoCreateUnknown(c *gin.Context, taskID string, cause error) error 
 // owner binding. Creation eligibility (quota, cooldown, scheduling and model
 // availability) must not move a previously accepted task to another account.
 func (s *OpenAIGatewayService) GetOpenAIVideoLookupAccount(ctx context.Context, boundAccountID int64) (*Account, error) {
+	account, err := s.GetDurableVideoLookupAccount(ctx, boundAccountID)
+	if err != nil {
+		return nil, err
+	}
+	if account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+		return nil, fmt.Errorf("video task account is unavailable")
+	}
+	return account, nil
+}
+
+func (s *OpenAIGatewayService) GetDurableVideoLookupAccount(ctx context.Context, boundAccountID int64) (*Account, error) {
 	if s == nil || s.accountRepo == nil || boundAccountID <= 0 {
 		return nil, fmt.Errorf("video task account is unavailable")
 	}
@@ -36,7 +47,7 @@ func (s *OpenAIGatewayService) GetOpenAIVideoLookupAccount(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	if account == nil || account.ID != boundAccountID || account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+	if account == nil || account.ID != boundAccountID || !durableVideoPlatform(account.Platform) || (account.Platform == PlatformOpenAI && account.Type != AccountTypeAPIKey) {
 		return nil, fmt.Errorf("video task account is unavailable")
 	}
 	return account, nil
