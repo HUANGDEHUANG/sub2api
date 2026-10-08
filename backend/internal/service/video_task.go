@@ -86,7 +86,16 @@ func (s *OpenAIGatewayService) videoTaskRepository() (VideoTaskRepository, error
 // frozen quote here. A non-nil quote is required and no live repricing is allowed.
 // A failed save must not acknowledge an untracked task to the client.
 func (s *OpenAIGatewayService) PersistOpenAIVideoTask(ctx context.Context, taskID string, apiKey *APIKey, account *Account, subscription *UserSubscription, pending GrokVideoPendingBilling, quote *VideoTaskCostSnapshot) error {
-	if apiKey == nil || apiKey.ID <= 0 || apiKey.UserID <= 0 || account == nil || account.ID <= 0 || account.Platform != PlatformOpenAI {
+	if account == nil || account.Platform != PlatformOpenAI {
+		return errors.New("durable video task requires an owned OpenAI account task")
+	}
+	return s.PersistDurableVideoTask(ctx, taskID, apiKey, account, subscription, pending, quote)
+}
+
+// PersistDurableVideoTask enrolls only newly accepted, pre-quoted tasks.
+// Historical tracking-only records must never be promoted to settlement.
+func (s *OpenAIGatewayService) PersistDurableVideoTask(ctx context.Context, taskID string, apiKey *APIKey, account *Account, subscription *UserSubscription, pending GrokVideoPendingBilling, quote *VideoTaskCostSnapshot) error {
+	if apiKey == nil || apiKey.ID <= 0 || apiKey.UserID <= 0 || account == nil || account.ID <= 0 || !durableVideoPlatform(account.Platform) || pending.TrackingOnly {
 		return errors.New("durable video task requires an owned OpenAI account task")
 	}
 	if err := validateVideoTaskID(taskID); err != nil {
@@ -124,7 +133,7 @@ func (s *OpenAIGatewayService) PersistOpenAIVideoTask(ctx context.Context, taskI
 	if subscription != nil {
 		subscriptionID = subscription.ID
 	}
-	if quote.Platform != PlatformOpenAI || quote.Command.UserID != apiKey.UserID || quote.Command.APIKeyID != apiKey.ID || quote.Command.AccountID != account.ID ||
+	if quote.Platform != account.Platform || quote.Command.UserID != apiKey.UserID || quote.Command.APIKeyID != apiKey.ID || quote.Command.AccountID != account.ID ||
 		valueOrZero(quote.Log.GroupID) != valueOrZero(apiKey.GroupID) || valueOrZero(quote.Command.SubscriptionID) != subscriptionID ||
 		quote.Log.VideoCount != 1 || *quote.Log.VideoDurationSeconds != pending.VideoDurationSeconds ||
 		!strings.EqualFold(strings.TrimSpace(*quote.Log.VideoResolution), strings.TrimSpace(pending.VideoResolution)) {
@@ -187,17 +196,25 @@ func validateVideoTaskID(id string) error {
 
 func videoTaskRoutingFingerprint(account *Account) string {
 	protocol, _ := account.Extra["openai_video_protocol"].(string)
+	baseURL := account.GetOpenAIBaseURL()
+	if account.Platform == PlatformGrok {
+		baseURL = account.GetGrokMediaBaseURL()
+	}
 	// Hash rather than store the base URL: provider base URLs may themselves
 	// contain access material. Parent identity prevents swapping credential owner.
-	body, _ := json.Marshal([]any{account.Platform, account.Type, account.GetOpenAIBaseURL(), protocol, account.ParentAccountID})
+	body, _ := json.Marshal([]any{account.Platform, account.Type, baseURL, protocol, account.ParentAccountID})
 	return fmt.Sprintf("%x", sha256.Sum256(body))
 }
 
 // ValidateDurableVideoTaskAccount must also guard the handler's subsequent
 // status/content forward, including already-completed durable tasks.
 func ValidateDurableVideoTaskAccount(task *VideoTask, account *Account) error {
-	if task == nil || account == nil || account.ID != task.AccountID || account.Platform != PlatformOpenAI || task.RoutingFingerprint == "" || task.RoutingFingerprint != videoTaskRoutingFingerprint(account) {
+	if task == nil || account == nil || account.ID != task.AccountID || !durableVideoPlatform(account.Platform) || task.RoutingFingerprint == "" || task.RoutingFingerprint != videoTaskRoutingFingerprint(account) {
 		return errors.New("durable video task account route changed")
 	}
 	return nil
+}
+
+func durableVideoPlatform(platform string) bool {
+	return platform == PlatformOpenAI || platform == PlatformGrok
 }

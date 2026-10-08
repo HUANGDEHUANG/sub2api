@@ -2721,3 +2721,19 @@
 - 文件：backend/internal/service/openai_gateway_response_handling.go
 - 断言："value.Get(\"prompt_cache_hit_tokens\")"
 - 断言："value.Get(\"input_tokens_details.cached_tokens\")"
+
+### C-420 Grok 新生成任务预报价与持久化自动结算
+- 文件：backend/internal/handler/grok_media.go
+- 断言："GrokVideoDurableSettlementEnabled()"
+- 断言："PersistDurableVideoTask(saveCtx"
+- 断言："shouldBindLegacyVideoTask = !durableGrokCreate"
+
+### C-421 Grok 无客户端查询结算与历史任务隔离回归
+- 文件：backend/internal/service/grok_video_settlement_test.go
+- 断言："TestGrokVideoSettlementWithoutClientPolling"
+- 断言："TestGrokVideoSettlementPreflightAndPersistenceFailure"
+- 断言："TestGrokVideoSettlementAmbiguousAcceptanceDoesNotFailover"
+
+### C-422 Grok 结算分阶段发布默认关闭
+- 文件：backend/internal/config/config.go
+- 断言："viper.SetDefault(\"gateway.grok_video_durable_settlement_enabled\", false)"

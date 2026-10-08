@@ -671,6 +671,26 @@ func (s *OpenAIGatewayService) ForwardOpenAIVideoCreate(
 	return s.forwardGrokMedia(ctx, c, account, GrokMediaEndpointVideosGenerations, "", body, contentType, saveTask, beforeSubmit...)
 }
 
+// ForwardGrokVideoCreate enrolls a newly accepted Grok asynchronous video in
+// the same durable settlement path as OpenAI video, while preserving Grok's
+// response envelope.
+func (s *OpenAIGatewayService) ForwardGrokVideoCreate(
+	ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint,
+	requestID string, body []byte, contentType string, saveTask func(*OpenAIForwardResult) error,
+	beforeSubmit ...func(*OpenAIForwardResult) error,
+) (*OpenAIForwardResult, error) {
+	if account == nil || account.Platform != PlatformGrok || saveTask == nil || endpoint != GrokMediaEndpointVideosGenerations {
+		return nil, fmt.Errorf("Grok video create requires an account, generation endpoint and task persistence")
+	}
+	return s.forwardGrokMedia(ctx, c, account, endpoint, requestID, body, contentType, saveTask, beforeSubmit...)
+}
+
+// GrokVideoDurableSettlementEnabled gates new enrollments only. Existing
+// durable tasks must keep settling even when new enrollments are disabled.
+func (s *OpenAIGatewayService) GrokVideoDurableSettlementEnabled() bool {
+	return s != nil && s.cfg != nil && s.cfg.Gateway.GrokVideoDurableSettlementEnabled
+}
+
 func (s *OpenAIGatewayService) forwardGrokMedia(
 	ctx context.Context, c *gin.Context, account *Account, endpoint GrokMediaEndpoint,
 	requestID string, body []byte, contentType string, saveTask func(*OpenAIForwardResult) error,
@@ -681,6 +701,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 		return nil, fmt.Errorf("grok account is required")
 	}
 	openAIVideo := account.Platform == PlatformOpenAI
+	durableCreate := saveTask != nil && endpoint == GrokMediaEndpointVideosGenerations
 	if openAIVideo && (account.Type != AccountTypeAPIKey || !supportsOpenAIVideoEndpoint(endpoint)) {
 		return nil, fmt.Errorf("OpenAI video requires an API-key account and a supported video endpoint")
 	}
@@ -738,6 +759,10 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 			return nil, err
 		}
 		requestInfo = ParseGrokMediaRequest(contentType, body)
+		if durableCreate {
+			requestInfo.Resolution = NormalizeVideoBillingResolutionOrDefault(requestInfo.Resolution)
+			requestInfo.DurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(requestInfo.DurationSeconds)
+		}
 		upstreamModel = requestInfo.Model
 		if endpoint.RequiresRequestBody() && gjson.ValidBytes(body) {
 			if mappedModel := strings.TrimSpace(account.GetMappedModel(requestInfo.Model)); mappedModel != "" {
@@ -762,7 +787,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 			return nil, err
 		}
 	}
-	if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations && len(beforeSubmit) > 0 && beforeSubmit[0] != nil {
+	if endpoint.IsGenerationRequest() && len(beforeSubmit) > 0 && beforeSubmit[0] != nil {
 		// Quote the actual normalized request, before any upstream POST. The
 		// caller passes this same snapshot to its accepted-task persistence.
 		preview := &OpenAIForwardResult{
@@ -782,7 +807,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
-	if openAIVideo {
+	if openAIVideo || durableCreate {
 		upstreamCtx = WithHTTPUpstreamRedirectsDisabled(upstreamCtx)
 	}
 	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, endpoint.httpMethod(), targetURL, bodyReader)
@@ -803,7 +828,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 	}
 	// 账号级请求头覆写最后应用，配置值优先于内置默认头。
 	account.ApplyHeaderOverrides(upstreamReq.Header)
-	if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations {
+	if durableCreate || (openAIVideo && endpoint == GrokMediaEndpointVideosGenerations) {
 		// Submission deduplication is local; do not enable transport/provider
 		// replay with a client key or an account-level header override.
 		upstreamReq.Header.Del("Idempotency-Key")
@@ -818,7 +843,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
-		if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations {
+		if durableCreate || (openAIVideo && endpoint == GrokMediaEndpointVideosGenerations) {
 			return nil, openAIVideoCreateUnknown(c, "", err)
 		}
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
@@ -827,7 +852,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 
 	requestIDHeader := firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id"))
 	requestModel := requestInfo.Model
-	if openAIVideo {
+	if openAIVideo || durableCreate {
 		if err := rejectOpenAIVideoRedirect(resp); err != nil {
 			if endpoint == GrokMediaEndpointVideosGenerations {
 				return nil, openAIVideoCreateUnknown(c, "", err)
@@ -835,7 +860,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 			return nil, err
 		}
 	}
-	if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations &&
+	if (durableCreate || (openAIVideo && endpoint == GrokMediaEndpointVideosGenerations)) &&
 		(resp.StatusCode == http.StatusRequestTimeout || resp.StatusCode >= http.StatusInternalServerError) {
 		return nil, openAIVideoCreateUnknown(c, "", fmt.Errorf("video upstream returned HTTP %d", resp.StatusCode))
 	}
@@ -847,12 +872,12 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 		s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, requestModel), account, resp.Header, resp.StatusCode)
 	}
 	onTooLarge := openAITooLargeError
-	if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations {
+	if durableCreate || (openAIVideo && endpoint == GrokMediaEndpointVideosGenerations) {
 		onTooLarge = nil // Preserve the create-unknown response on a truncated acceptance.
 	}
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, onTooLarge)
 	if err != nil {
-		if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations {
+		if durableCreate || (openAIVideo && endpoint == GrokMediaEndpointVideosGenerations) {
 			return nil, openAIVideoCreateUnknown(c, "", err)
 		}
 		return nil, err
@@ -889,7 +914,7 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 			respBody = rewriteGrokMediaVideoContentURLs(respBody, requestID, grokMediaContentProxyURL(c, requestID))
 		}
 	}
-	if openAIVideo && endpoint == GrokMediaEndpointVideosGenerations && extractGrokMediaVideoRequestID(respBody) == "" {
+	if (durableCreate || (openAIVideo && endpoint == GrokMediaEndpointVideosGenerations)) && extractGrokMediaVideoRequestID(respBody) == "" {
 		return nil, openAIVideoCreateUnknown(c, "", fmt.Errorf("video upstream returned no task id"))
 	}
 	if saveTask == nil {
@@ -935,6 +960,17 @@ func (s *OpenAIGatewayService) forwardGrokMedia(
 	if saveTask != nil {
 		if err := saveTask(result); err != nil {
 			return nil, openAIVideoCreateUnknown(c, result.ResponseID, fmt.Errorf("persist accepted video task: %w", err))
+		}
+		if !openAIVideo {
+			// A synchronously completed create must not expose an unbilled
+			// download. The worker confirms completion and settles normally.
+			if ExtractVideoPreviewURL(respBody) != "" {
+				c.Header("Cache-Control", "private, no-store")
+				c.JSON(resp.StatusCode, gin.H{"request_id": result.ResponseID, "status": "pending"})
+				return result, nil
+			}
+			writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
+			return result, nil
 		}
 		// An upstream may complete synchronously. Durable acceptance is not
 		// settlement: publish only the task handle until the worker has billed.
