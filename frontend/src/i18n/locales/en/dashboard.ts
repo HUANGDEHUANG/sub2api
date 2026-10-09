@@ -405,6 +405,8 @@ export default {
     allCompactionTypes: 'All Requests',
     compactionOnly: 'Compaction Only',
     latencyDuration: 'Total',
+    outputTps: 'Output TPS',
+    outputTpsHint: 'Output tokens divided by total duration, including first-token wait, in tok/s. Output tokens may include reasoning tokens.',
     time: 'Time',
     ws: 'WS',
     stream: 'Stream',
