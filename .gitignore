@@ -24,6 +24,9 @@ temp/
 dist/
 build/
 release/
+!ops/release/
+!ops/release/verify_frontend_http.py
+!ops/release/sub2api-static-assets.conf
 
 # 后端嵌入的前端构建产物
 # Keep a placeholder file so `//go:embed all:dist` always has a match in CI/lint,
