@@ -15,7 +15,7 @@ vi.mock('@/utils/ipGeoLookup', () => ipGeoMocks)
 vi.mock('@/stores/app', () => ({ useAppStore: () => appStoreMocks }))
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import en from '@/i18n/locales/en/admin/resources'
@@ -148,6 +148,54 @@ const baseImageRow = {
   image_size_source: null,
   image_size_breakdown: null,
 }
+
+describe('shared UsageTable compaction badge', () => {
+  it.each([true, false, undefined])('uses only the explicit compaction flag: %s', (flag) => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, model: 'gpt-5.6-sol', upstream_response_model: 'gpt-5.6-luna', stream: true, native_compaction_v2: flag }],
+        loading: false,
+        columns: [{ key: 'stream', label: 'Type' }],
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.text().includes('Compaction')).toBe(flag === true)
+    wrapper.unmount()
+  })
+})
+
+describe('admin UsageTable preview lifecycle', () => {
+  it('releases old page blobs and aborts in-flight downloads when leaving a page', async () => {
+    const create = vi.fn(() => 'blob:preview-fixture')
+    const revoke = vi.fn()
+    const OriginalURL = URL
+    vi.stubGlobal('URL', class extends OriginalURL {
+      static createObjectURL = create
+      static revokeObjectURL = revoke
+    })
+    vi.stubGlobal('IntersectionObserver', undefined)
+    previewApiMocks.get.mockResolvedValueOnce({ data: new Blob(['fixture']) })
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, image_previews: ['/api/v1/admin/usage/1/images/0'] }], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    await flushPromises()
+    expect(create).toHaveBeenCalledTimes(1)
+    let finish: ((value: unknown) => void) | undefined
+    previewApiMocks.get.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    await wrapper.setProps({ data: [{ ...baseImageRow, request_id: 'next-page', image_previews: ['/api/v1/admin/usage/2/images/0'] }] })
+    await flushPromises()
+    expect(revoke).toHaveBeenCalledWith('blob:preview-fixture')
+    const options = previewApiMocks.get.mock.calls.at(-1)?.[1]
+    await wrapper.setProps({ data: [] })
+    expect(options.signal.aborted).toBe(true)
+    finish?.({ data: new Blob(['late fixture']) })
+    await flushPromises()
+    expect(create).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+    vi.unstubAllGlobals()
+  })
+})
 
 describe('admin UsageTable tooltip', () => {
   it('shows output TPS in the latency cell using total duration', () => {
