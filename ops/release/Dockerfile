@@ -8,7 +8,7 @@ COPY frontend/ ./
 COPY docs/legal/ /src/docs/legal/
 RUN pnpm build
 
-FROM golang:1.27.0-alpine AS backend
+FROM golang:1.27.2-alpine AS backend
 WORKDIR /src/backend
 COPY backend/ ./
 COPY --from=frontend /src/backend/internal/web/dist/ ./internal/web/dist/
