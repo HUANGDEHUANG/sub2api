@@ -13,6 +13,7 @@ vi.mock('@/api/client', () => ({ default: previewApiMocks, apiClient: previewApi
 
 vi.mock('@/utils/ipGeoLookup', () => ipGeoMocks)
 vi.mock('@/stores/app', () => ({ useAppStore: () => appStoreMocks }))
+const mediaAPI = previewApiMocks
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -35,6 +36,9 @@ const localizedMessages: Record<'en' | 'zh', Record<string, string>> = {
 }
 
 const messages: Record<string, string> = {
+  'usage.stream': 'Stream',
+  'usage.sync': 'Sync',
+  'usage.compaction': 'Compaction',
   'usage.outputTps': 'Output TPS',
   'admin.usage.userDeletedBadge': 'Deleted',
   'usage.costDetails': 'Cost Breakdown',
@@ -72,10 +76,6 @@ const messages: Record<string, string> = {
   'usage.imageSizeUnknown': 'unknown',
   'usage.imageUnitPrice': 'Per-image price',
   'usage.imageTotalPrice': 'Image total price',
-  'usage.stream': 'Stream',
-  'usage.sync': 'Sync',
-  'usage.nativeCompactionV2': 'Compaction',
-  'usage.compaction': 'Compaction',
   'admin.usage.billingModeToken': 'Token',
   'admin.usage.billingModePerRequest': 'Per request',
   'admin.usage.billingModeImage': 'Image',
@@ -108,7 +108,6 @@ const DataTableStub = {
       <div v-for="row in data" :key="row.request_id" :data-request-id="row.request_id">
         <slot name="cell-model" :row="row" :value="row.model" />
         <slot name="cell-stream" :row="row" />
-        <slot name="cell-long_context_billing_applied" :row="row" />
         <slot name="cell-reasoning_effort" :row="row" :value="row.reasoning_effort" />
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
@@ -177,7 +176,7 @@ describe('admin UsageTable preview lifecycle', () => {
     previewApiMocks.get.mockResolvedValueOnce({ data: new Blob(['fixture']) })
     const wrapper = mount(UsageTable, {
       props: { data: [{ ...baseImageRow, image_previews: ['/api/v1/admin/usage/1/images/0'] }], loading: false, columns: [] },
-      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } }
     })
     await flushPromises()
     expect(create).toHaveBeenCalledTimes(1)
@@ -198,6 +197,45 @@ describe('admin UsageTable preview lifecycle', () => {
 })
 
 describe('admin UsageTable tooltip', () => {
+  const mountVideo = () => mount(UsageTable, {
+    props: {
+      data: [{ ...baseImageRow, billing_mode: 'token', image_count: 0, video_count: 1,
+        video_previews: ['/api/v1/admin/usage/12/videos/0'] }],
+      loading: false, columns: [],
+    },
+    global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+  })
+
+  it('loads videos only on click and refreshes playback authorization on reopen', async () => {
+    mediaAPI.get.mockReset().mockResolvedValue({ data: '/api/v1/admin/usage/12/videos/0/content' })
+    const wrapper = mountVideo()
+    expect(mediaAPI.get).not.toHaveBeenCalled()
+    await wrapper.get('[title="预览视频 1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('video').attributes('src')).toBe('/api/v1/admin/usage/12/videos/0/content')
+    expect(mediaAPI.get).toHaveBeenCalledWith('/admin/usage/12/videos/0', { responseType: 'text' })
+    await wrapper.get('[title="关闭预览"]').trigger('click')
+    await wrapper.get('[title="预览视频 1"]').trigger('click')
+    await flushPromises()
+    expect(mediaAPI.get).toHaveBeenCalledTimes(2)
+    await wrapper.get('video').trigger('error')
+    expect(wrapper.get('[role="alert"]').text()).toContain('视频暂时无法播放')
+    wrapper.unmount()
+  })
+
+  it('reports unavailable or unsafe video URLs without opening a player', async () => {
+    for (const result of ['https://upstream.example/private?key=secret', '']) {
+      mediaAPI.get.mockReset().mockResolvedValue({ data: result })
+      appStoreMocks.showError.mockClear()
+      const wrapper = mountVideo()
+      await wrapper.get('[title="预览视频 1"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('video').exists()).toBe(false)
+      expect(appStoreMocks.showError).toHaveBeenCalledOnce()
+      wrapper.unmount()
+    }
+  })
+
   it('shows output TPS in the latency cell using total duration', () => {
     const row = { ...baseImageRow, image_count: 0, billing_mode: 'token', output_tokens: 1000, duration_ms: 20_000, first_token_ms: 10_000 }
     const wrapper = mount(UsageTable, {
@@ -251,7 +289,7 @@ describe('admin UsageTable tooltip', () => {
           },
         ],
         loading: false,
-        columns: [{ key: 'stream', label: 'Type' }],
+        columns: [],
       },
       global: {
         stubs: {
@@ -302,7 +340,7 @@ describe('admin UsageTable tooltip', () => {
           },
         ],
         loading: false,
-        columns: [{ key: 'stream', label: 'Type' }],
+        columns: [],
       },
       global: {
         stubs: {
