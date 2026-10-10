@@ -384,6 +384,9 @@
     "frontend/src/views/user/__tests__/UsageView.spec.ts",
     "backend/internal/service/video_preview_cache.go",
     "backend/internal/service/video_preview_cache_test.go",
-    "backend/internal/service/video_preview_capture.go"
+    "backend/internal/service/video_preview_capture.go",
+    "backend/cmd/server/direct_api_tls.go",
+    "backend/cmd/server/direct_api_tls_test.go",
+    "ops/release/sync-direct-api-cert.sh"
   ]
 }

@@ -2737,3 +2737,19 @@
 ### C-422 Grok 结算分阶段发布默认关闭
 - 文件：backend/internal/config/config.go
 - 断言："viper.SetDefault(\"gateway.grok_video_durable_settlement_enabled\", false)"
+
+### C-423 公网直连由应用提供独立 TLS 监听
+- 文件：backend/cmd/server/direct_api_tls.go
+- 断言："func startDirectAPITLS(base *http.Server, forwardedIPHeaders func() []string) *http.Server"
+- 断言："server.ServeTLS(listener, \"\", \"\")"
+- 断言："!directAPIAllowedPath(path, r.Method)"
+
+### C-424 直连与主服务共享应用并同步关闭
+- 文件：backend/cmd/server/main.go
+- 断言："directServer := startDirectAPITLS(app.Server, func() []string {"
+- 断言："directServer.Shutdown(ctx)"
+
+### C-425 直连证书隔离续签
+- 文件：ops/release/sync-direct-api-cert.sh
+- 断言："destination=/opt/sub2api-return/direct-api-tls"
+- 断言："mv -Tf \"$destination/.current-next\" \"$destination/current\""
