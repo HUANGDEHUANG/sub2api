@@ -20,11 +20,12 @@ const (
 	// attempt plus a failover before reaching a healthy account. Low-traffic
 	// deployments were hit hardest, which is the opposite of what a breaker
 	// should do.
-	openAIModelTransientStreakTTL     = 30 * time.Minute
-	openAIModelTransientShortCooldown = 10 * time.Second
-	openAIModelTransientLongCooldown  = 45 * time.Second
-	openAIModelTransientDefaultMax    = 4096
-	openAIModelTransientMaxModelBytes = 512
+	openAIModelTransientStreakTTL       = 30 * time.Minute
+	openAIModelTransientShortCooldown   = 10 * time.Second
+	openAIModelTransientLongCooldown    = 45 * time.Second
+	openAIModelTransientTimeoutCooldown = 90 * time.Second
+	openAIModelTransientDefaultMax      = 4096
+	openAIModelTransientMaxModelBytes   = 512
 )
 
 type openAIAccountModelKey struct {
@@ -156,6 +157,9 @@ func (s *openAIAccountModelTransientState) recordFailureWithInitialCooldown(acco
 		cooldown = openAIModelTransientLongCooldown
 	case entry.failureStreak == 2:
 		cooldown = openAIModelTransientShortCooldown
+	}
+	if initialCooldown > cooldown {
+		cooldown = initialCooldown
 	}
 	if cooldown > 0 {
 		entry.blockUntil = now.Add(cooldown)

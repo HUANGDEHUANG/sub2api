@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Execute on the Docker host. Only a verified Git archive is a build input.
 set -euo pipefail
-[[ $# == 3 ]] || { echo 'Usage: build-bluegreen.sh archive.tar.gz archive.tar.gz.json sub2api:buaga-custom-v<version>' >&2; exit 2; }
+[[ $# == 3 ]] || { echo 'Usage: build-bluegreen.sh archive.tar.gz archive.tar.gz.json sub2api:buaga-custom-v<version>[-r<number>]' >&2; exit 2; }
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 archive="$1"
 manifest="$2"
 image_tag="$3"
-[[ "$image_tag" =~ ^sub2api:buaga-custom-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Image tag must be sub2api:buaga-custom-v<major>.<minor>.<patch>' >&2; exit 1; }
+[[ "$image_tag" =~ ^sub2api:buaga-custom-v[0-9]+\.[0-9]+\.[0-9]+(-r[0-9]+)?$ ]] || { echo 'Image tag must be sub2api:buaga-custom-v<major>.<minor>.<patch>[-r<number>]' >&2; exit 1; }
 [[ -z "${BUILD_REPO_ROOT:-}" && -z "${BUILD_FRONTEND_SOURCE:-}" && -z "${BUILD_DOCKERFILE:-}" ]] || { echo 'Mutable source or Dockerfile overrides are forbidden' >&2; exit 1; }
 stage="$(mktemp -d /tmp/buaga-git-build.XXXXXX)"
 python3 "$script_dir/verify_package.py" "$archive" "$manifest" --extract "$stage/source"

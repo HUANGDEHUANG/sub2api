@@ -23,7 +23,7 @@ Nginx `/assets/` 必须与 HTML 使用同一 `sub2api_backend`，直接代理当
 3. 审核后合回 `production`，创建不可移动的 `rel/buaga-*` 标签。
 4. 在干净工作区执行 `python3 ops/release/package.py <tag> <绝对输出路径.tar.gz>`。
 5. 上传包和独立 JSON 清单。服务器运行已安装的 `verify_package.py`，校验 SHA256、Git commit、定制功能，再解包。
-6. 主站构建使用 `build-bluegreen.sh`；镜像必须继承当前定制运行时，前端从同一 Git 包重新构建，并使用 `sub2api:buaga-custom-vX.Y.Z` 标签。
+6. 主站构建使用 `build-bluegreen.sh`；镜像必须继承当前定制运行时，前端从同一 Git 包重新构建，并使用 `sub2api:buaga-custom-vX.Y.Z` 标签。同一产品版本的修复候选使用不可覆盖现有镜像的 `-rN` 后缀。
 7. 镜像统一提供后端、入口 HTML 和全部前端懒加载资源；Nginx `/assets/` 只代理当前镜像，不再单独同步静态目录。
 8. 按现有流程隔离测试、验证定制界面和健康检查，再平滑切换。打包或构建不等于上线。
 
