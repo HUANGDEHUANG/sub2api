@@ -22,6 +22,36 @@ func TestOpenAIModelTransient_FirstFailureDoesNotCreateLongBlock(t *testing.T) {
 	assert.False(t, state.isBlocked(35, "gpt-5.5", now))
 }
 
+func TestOpenAIModelTransient_TimeoutCooldownIsModelScopedAndAllowsRecovery(t *testing.T) {
+	state := newOpenAIAccountModelTransientState(128)
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	decision := state.recordFailureWithInitialCooldown(35, "gpt-5.5", now,
+		openAIModelTransientTimeoutCooldown, openAITransientFailureOptions{requireProbe: true})
+
+	require.Equal(t, openAIModelTransientTimeoutCooldown, decision.Cooldown)
+	require.True(t, state.isBlocked(35, "gpt-5.5", now.Add(time.Minute)))
+	require.False(t, state.isBlocked(35, "gpt-6", now.Add(time.Minute)))
+	require.False(t, state.isBlocked(47, "gpt-5.5", now.Add(time.Minute)))
+
+	blocked, probeID := state.reserveProbe(35, "gpt-5.5", now.Add(openAIModelTransientTimeoutCooldown+time.Second))
+	require.False(t, blocked)
+	require.NotZero(t, probeID)
+	require.True(t, state.completeProbe(35, "gpt-5.5", probeID, now.Add(openAIModelTransientTimeoutCooldown+2*time.Second)))
+	require.False(t, state.isBlocked(35, "gpt-5.5", now.Add(openAIModelTransientTimeoutCooldown+2*time.Second)))
+}
+
+func TestOpenAIModelTransient_TimeoutCooldownFloorSurvivesFailureStreak(t *testing.T) {
+	state := newOpenAIAccountModelTransientState(128)
+	now := time.Date(2026, 10, 10, 10, 0, 0, 0, time.UTC)
+	for streak := 1; streak <= 3; streak++ {
+		decision := state.recordFailureWithInitialCooldown(35, "gpt-5.5", now,
+			openAIModelTransientTimeoutCooldown)
+		require.Equal(t, streak, decision.FailureStreak)
+		require.Equal(t, openAIModelTransientTimeoutCooldown, decision.Cooldown)
+		now = now.Add(openAIModelTransientTimeoutCooldown + time.Second)
+	}
+}
+
 func TestOpenAIModelTransient_SecondFailureCreatesShortModelBlock(t *testing.T) {
 	state := newOpenAIAccountModelTransientState(128)
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)

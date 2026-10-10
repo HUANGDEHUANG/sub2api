@@ -193,6 +193,21 @@ func isOpenAIRequestScopedCapacityShed(upstreamMsg string, upstreamBody []byte) 
 		(!gjson.ValidBytes(upstreamBody) && isOpenAICapacityShedMessage(string(upstreamBody)))
 }
 
+// isOpenAIUpstreamResponseTimeExceeded recognizes the upstream's explicit
+// five-minute channel timeout. Do not infer it from a message: providers can
+// echo client input there, and ordinary long-running requests may succeed.
+func isOpenAIUpstreamResponseTimeExceeded(statusCode int, body []byte) bool {
+	if statusCode < http.StatusInternalServerError || !gjson.ValidBytes(body) {
+		return false
+	}
+	for _, path := range []string{"error.code", "response.error.code", "code"} {
+		if strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, path).String()), "channel:response_time_exceeded") {
+			return true
+		}
+	}
+	return false
+}
+
 func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {
 	match := func(text string) bool {
 		lower := strings.ToLower(strings.TrimSpace(text))

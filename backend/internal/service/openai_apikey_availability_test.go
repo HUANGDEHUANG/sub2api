@@ -63,7 +63,11 @@ func TestOpenAIAPIKeyAvailability_TransientStatusMatrix(t *testing.T) {
 			svc.handleOpenAIAccountUpstreamError(context.Background(), account, status, http.Header{}, body, "gpt-test")
 			entry := apiKeyAvailabilityTransientEntry(t, svc, account, "gpt-test")
 			require.Equal(t, 1, entry.failureStreak)
-			require.Equal(t, 10*time.Second, entry.blockUntil.Sub(entry.lastFailure))
+			wantCooldown := openAIModelTransientShortCooldown
+			if status == 524 {
+				wantCooldown = openAIModelTransientTimeoutCooldown
+			}
+			require.Equal(t, wantCooldown, entry.blockUntil.Sub(entry.lastFailure))
 			require.False(t, svc.newOpenAIAccountFailoverError(account, status, nil, body, "", false, true).RetryableOnSameAccount)
 			for _, passthrough := range []bool{false, true} {
 				svc, account := newAPIKeyAvailabilityTestService(true)

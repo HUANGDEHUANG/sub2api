@@ -215,6 +215,12 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 		if availabilityTransient || account.IsPoolMode() {
 			initialCooldown = openAIModelTransientShortCooldown
 		}
+		// An explicit five-minute upstream timeout (or a 524 proxy timeout)
+		// warrants a longer model-only pause. Other models and accounts remain
+		// schedulable, and pool accounts recover through the existing probe.
+		if isOpenAIUpstreamResponseTimeExceeded(statusCode, responseBody) || statusCode == 524 {
+			initialCooldown = openAIModelTransientTimeoutCooldown
+		}
 		decision := s.recordOpenAIAccountModelTransientFailureWithInitialCooldown(account, model, time.Now(), initialCooldown, fmt.Sprintf("upstream_%d", statusCode))
 		if decision.FailureStreak > 0 {
 			slog.Warn("openai_model_transient_state",
