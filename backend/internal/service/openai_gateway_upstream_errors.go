@@ -423,6 +423,9 @@ func (s *OpenAIGatewayService) newOpenAIAccountFailoverErrorWithClassificationHe
 
 const (
 	openAIUpstreamAccessUnavailableClientMessage = "Upstream access is temporarily unavailable, please retry later"
+	// OpenAIStreamTimeoutReason marks an upstream SSE stream_timeout that can be
+	// retried on another account before client-visible model output starts.
+	OpenAIStreamTimeoutReason = GatewayFailureReason("openai_stream_timeout")
 	// OpenAIUpstreamAccessStateReason marks a provider credential whose
 	// account, workspace, or organization is unavailable.
 	OpenAIUpstreamAccessStateReason = GatewayFailureReason("openai_upstream_access_state")

@@ -3606,6 +3606,12 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 		h.handleStreamingAwareError(c, status, "server_error", failoverErr.ClientMessage, streamStarted)
 		return
 	}
+	if failoverErr.Reason == service.OpenAIStreamTimeoutReason {
+		message := "Upstream response stream timed out; please retry later"
+		service.SetOpsUpstreamError(c, http.StatusServiceUnavailable, message, "")
+		h.handleStreamingAwareErrorWithCode(c, http.StatusServiceUnavailable, "server_error", "stream_timeout", message, streamStarted, false)
+		return
+	}
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
 	if statusCode == http.StatusBadRequest && service.IsOpenAICompatibleModelNotFound400(responseBody) && !streamStarted {

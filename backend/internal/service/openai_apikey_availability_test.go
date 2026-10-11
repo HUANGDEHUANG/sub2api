@@ -293,6 +293,78 @@ func TestOpenAIAPIKeyAvailability_StreamBeforeOutput(t *testing.T) {
 	}
 }
 
+func TestOpenAIAPIKeyAvailability_BareStreamTimeoutSwitchesAccount(t *testing.T) {
+	const payload = `{"type":"error","sequence_number":0,"code":"stream_timeout","message":"Upstream response stream timed out","param":null}`
+	for _, passthrough := range []bool{false, true} {
+		t.Run(map[bool]string{false: "native", true: "passthrough"}[passthrough], func(t *testing.T) {
+			svc, account := newAPIKeyAvailabilityTestService(true)
+			body := "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_timeout\"}}\n\n" +
+				"event: error\ndata: " + payload + "\n\n"
+			rec, err := runAPIKeyAvailabilityTestStream(t, svc, account, passthrough, io.NopCloser(strings.NewReader(body)))
+			var failover *UpstreamFailoverError
+			require.ErrorAs(t, err, &failover)
+			require.Equal(t, http.StatusServiceUnavailable, failover.StatusCode)
+			require.Equal(t, OpenAIStreamTimeoutReason, failover.Reason)
+			require.False(t, failover.RetryableOnSameAccount)
+			require.Empty(t, rec.Body.String(), "pre-output timeout must not leak a failed attempt")
+			require.Equal(t, 1, apiKeyAvailabilityTransientEntry(t, svc, account, "gpt-test").failureStreak)
+			require.True(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-test"))
+			require.False(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-other"))
+		})
+	}
+}
+
+func TestOpenAIAPIKeyAvailability_PoolStreamTimeoutSkipsSameAccountRetry(t *testing.T) {
+	const payload = `{"type":"error","code":"stream_timeout","message":"Upstream response stream timed out"}`
+	for _, passthrough := range []bool{false, true} {
+		t.Run(map[bool]string{false: "native", true: "passthrough"}[passthrough], func(t *testing.T) {
+			svc, account := newAPIKeyAvailabilityTestService(true)
+			account.Credentials = map[string]any{
+				"pool_mode":                    true,
+				"pool_mode_retry_status_codes": []any{float64(http.StatusServiceUnavailable)},
+			}
+			body := "event: error\ndata: " + payload + "\n\n"
+			rec, err := runAPIKeyAvailabilityTestStream(t, svc, account, passthrough, io.NopCloser(strings.NewReader(body)))
+			var failover *UpstreamFailoverError
+			require.ErrorAs(t, err, &failover)
+			require.Equal(t, OpenAIStreamTimeoutReason, failover.Reason)
+			require.False(t, failover.RetryableOnSameAccount, "a 180-second timeout must switch accounts even when the pool retries 503")
+			require.Empty(t, rec.Body.String())
+			require.True(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-test"))
+			require.False(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-other"))
+		})
+	}
+}
+
+func TestOpenAIAPIKeyAvailability_BareStreamTimeoutAfterOutputDoesNotReplay(t *testing.T) {
+	const body = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n" +
+		"event: error\ndata: {\"type\":\"error\",\"code\":\"stream_timeout\",\"message\":\"Upstream response stream timed out\"}\n\n"
+	for _, passthrough := range []bool{false, true} {
+		t.Run(map[bool]string{false: "native", true: "passthrough"}[passthrough], func(t *testing.T) {
+			svc, account := newAPIKeyAvailabilityTestService(true)
+			rec, err := runAPIKeyAvailabilityTestStream(t, svc, account, passthrough, io.NopCloser(strings.NewReader(body)))
+			require.Error(t, err)
+			var failover *UpstreamFailoverError
+			require.False(t, errors.As(err, &failover), "partial output must not be replayed on another account")
+			require.Contains(t, rec.Body.String(), "partial")
+		})
+	}
+}
+
+func TestOpenAIStreamTimeoutClassificationRequiresStructuredCode(t *testing.T) {
+	actual := []byte(`{"type":"error","code":"stream_timeout","message":"Upstream response stream timed out"}`)
+	message := extractOpenAISSEErrorMessage(actual)
+	require.Equal(t, http.StatusServiceUnavailable, openAIStreamFailureStatus(actual, message))
+	require.True(t, openAIStreamErrorEventShouldFailover(actual, message))
+	withRateLimitText := []byte(`{"type":"error","code":"stream_timeout","message":"rate_limit while waiting for upstream"}`)
+	require.Equal(t, http.StatusServiceUnavailable, openAIStreamFailureStatus(withRateLimitText, extractOpenAISSEErrorMessage(withRateLimitText)))
+
+	quoted := []byte(`{"type":"error","error":{"code":"invalid_request","message":"Prompt contains stream_timeout"}}`)
+	message = extractOpenAISSEErrorMessage(quoted)
+	require.Equal(t, http.StatusBadGateway, openAIStreamFailureStatus(quoted, message))
+	require.False(t, openAIStreamErrorEventShouldFailover(quoted, message))
+}
+
 func TestOpenAIAPIKeyAvailability_ExplicitStream503KeepsRequestRejections(t *testing.T) {
 	svc, account := newAPIKeyAvailabilityTestService(true)
 	for _, payload := range []string{
