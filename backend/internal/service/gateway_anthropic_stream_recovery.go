@@ -70,7 +70,7 @@ func newAnthropicStreamFailoverError(data string) *UpstreamFailoverError {
 func anthropicStreamHasSemanticOutput(data string) bool {
 	if gjson.Get(data, "type").String() == "content_block_start" {
 		block := gjson.Get(data, "content_block")
-		return block.Get("text").String() != "" || block.Get("thinking").String() != ""
+		return block.Get("text").String() != "" || block.Get("thinking").String() != "" || block.Get("type").String() == "tool_use" || block.Get("type").String() == "server_tool_use"
 	}
 	if gjson.Get(data, "type").String() != "content_block_delta" {
 		return false
@@ -171,8 +171,13 @@ func (s *GatewayService) recordAnthropicStreamFailure(ctx context.Context, accou
 	if !anthropicStreamRecoveryAccount(account) || ctx.Err() != nil || !errors.As(err, &failure) || !failure.transient {
 		return
 	}
-	d := s.anthropicStreamRecovery().recordFailureWithInitialCooldown(account.ID, model, time.Now(), openAIModelTransientShortCooldown,
-		openAITransientFailureOptions{requireProbe: true, reason: "anthropic_" + failure.reason})
+	threshold := 1
+	if failure.reason == "upstream_http_error" {
+		threshold = 2
+	}
+	d := s.anthropicStreamRecovery().recordFailureWithInitialCooldown(account.ID, model, time.Now(), 0,
+		openAITransientFailureOptions{requireProbe: true, reason: "anthropic_" + failure.reason,
+			backoffBase: 30 * time.Second, backoffCap: 5 * time.Minute, failureThreshold: threshold})
 	if d.Cooldown > 0 {
 		logger.FromContext(ctx).Warn("gateway.anthropic_model_stream_cooldown", zap.Int64("account_id", account.ID),
 			zap.String("model", model), zap.String("reason", failure.reason), zap.Duration("cooldown", d.Cooldown))
@@ -204,7 +209,11 @@ func (s *GatewayService) admitAnthropicStreamRecoveryModel(ctx context.Context, 
 	stop := context.AfterFunc(ctx, wrapped)
 	return func() { stop(); wrapped() }, func(success bool) {
 		if success && ctx.Err() == nil {
-			state.completeProbe(account.ID, model, id, time.Now())
+			if id == 0 {
+				state.recordSuccess(account.ID, model)
+			} else {
+				state.completeProbe(account.ID, model, id, time.Now())
+			}
 		}
 	}, true
 }

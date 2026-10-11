@@ -1256,7 +1256,7 @@ func (a *Account) IsPoolModeRetryableStatus(statusCode int) bool {
 	// same credential only repeats the provider rejection and can keep a request
 	// pinned to one Claude/Kiro account. Let failover select another account;
 	// the normal 429 cooldown still prevents immediate reselection.
-	if a != nil && a.Platform == PlatformAnthropic && statusCode == http.StatusTooManyRequests {
+	if a != nil && a.Platform == PlatformAnthropic && (statusCode == http.StatusTooManyRequests || (a.Type == AccountTypeAPIKey && statusCode >= 500)) {
 		return false
 	}
 	codes := a.GetPoolModeRetryStatusCodes()

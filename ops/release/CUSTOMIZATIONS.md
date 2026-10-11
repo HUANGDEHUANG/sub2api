@@ -874,7 +874,7 @@
 
 ### C-104 backend/internal/service/gateway_anthropic_stream_recovery.go
 - 文件：backend/internal/service/gateway_anthropic_stream_recovery.go
-- 断言："d := s.anthropicStreamRecovery().recordFailureWithInitialCooldown(account.ID, model, time.Now(), openAIModelTransientShortCooldown,"
+- 断言："d := s.anthropicStreamRecovery().recordFailureWithInitialCooldown(account.ID, model, time.Now(), 0,"
 - 断言："if !anthropicStreamRecoveryAccount(account) || ctx.Err() != nil || !errors.As(err, &failure) || !failure.transient {"
 - 断言："logger.FromContext(ctx).Warn(\"gateway.anthropic_model_stream_cooldown\", zap.Int64(\"account_id\", account.ID),"
 
@@ -2765,3 +2765,15 @@
 - 文件：backend/internal/handler/openai_gateway_handler.go
 - 断言："if failoverErr.Reason == service.OpenAIStreamTimeoutReason {"
 - 断言："http.StatusServiceUnavailable, \"server_error\", \"stream_timeout\""
+
+### C-428 Anthropic 池账号模型限流冷却与首输出等待上限
+- 文件：backend/internal/service/gateway_anthropic_availability.go
+- 断言："const anthropicFirstOutputWait = 30 * time.Second"
+- 断言："func (s *GatewayService) recordAnthropicRateLimit"
+- 断言："func guardAnthropicFirstOutput"
+
+### C-429 Anthropic 冷却恢复与长回复安全回归
+- 文件：backend/internal/service/gateway_anthropic_availability_test.go
+- 断言："func TestAnthropicAvailabilityCooldownRecovery"
+- 断言："func TestAnthropicAvailabilityTimeoutHeadersAndHeartbeats"
+- 断言："func TestAnthropicAvailabilityReplayAndStopDeadline"
