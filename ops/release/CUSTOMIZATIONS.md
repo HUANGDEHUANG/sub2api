@@ -2753,3 +2753,15 @@
 - 文件：ops/release/sync-direct-api-cert.sh
 - 断言："destination=/opt/sub2api-return/direct-api-tls"
 - 断言："mv -Tf \"$destination/.current-next\" \"$destination/current\""
+
+### C-426 上游流内超时按账号模型避让并换号
+- 文件：backend/internal/service/openai_gateway_passthrough.go
+- 断言："func isOpenAIStreamTimeoutEvent(payload []byte) bool"
+- 断言："failoverErr.Reason = OpenAIStreamTimeoutReason"
+- 断言："account.IsPoolMode() && isOpenAIStreamTimeoutEvent(payload)"
+- 断言："upstream_stream_timeout"
+
+### C-427 流超时换号耗尽后返回 503 语义错误
+- 文件：backend/internal/handler/openai_gateway_handler.go
+- 断言："if failoverErr.Reason == service.OpenAIStreamTimeoutReason {"
+- 断言："http.StatusServiceUnavailable, \"server_error\", \"stream_timeout\""

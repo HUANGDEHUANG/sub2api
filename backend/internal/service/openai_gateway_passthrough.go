@@ -1305,6 +1305,26 @@ func openAIStreamFailedEventErrorCode(payload []byte) string {
 	return code
 }
 
+// Some compatible relays put stream_timeout at the top level of an HTTP 200
+// SSE error frame. Only a structured code is trusted: a prompt may contain the
+// same words, and an explicit 4xx rejection must not become a retryable 503.
+func isOpenAIStreamTimeoutEvent(payload []byte) bool {
+	if !gjson.ValidBytes(payload) {
+		return false
+	}
+	switch openAIStreamErrorStatus(payload) {
+	case 0, http.StatusOK, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+	default:
+		return false
+	}
+	for _, path := range []string{"response.error.code", "error.code", "code"} {
+		if strings.EqualFold(strings.TrimSpace(gjson.GetBytes(payload, path).String()), "stream_timeout") {
+			return true
+		}
+	}
+	return false
+}
+
 // isOpenAIUpstreamCapacityShedEvent 判断流内 failed 事件是否为上游容量降载信号。
 // 上游在容量紧张时会把请求丢进降载路径：HTTP 200 之后立刻推 event: error
 // （code=server_is_overloaded / slow_down）并以 response.failed 收尾。
@@ -1425,6 +1445,8 @@ func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 		return status
 	}
 	switch {
+	case isOpenAIStreamTimeoutEvent(payload):
+		return http.StatusServiceUnavailable
 	case strings.Contains(combined, "rate_limit"):
 		return http.StatusTooManyRequests
 	case strings.Contains(errType, "invalid_request"):
@@ -1624,6 +1646,9 @@ func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
 	if isOpenAIUpstreamAccessStateError(message, payload) {
 		return true
 	}
+	if isOpenAIStreamTimeoutEvent(payload) {
+		return true
+	}
 	semanticStatus := openAIStreamFailedEventSemanticStatus(payload, message)
 	switch semanticStatus {
 	case http.StatusForbidden:
@@ -1710,6 +1735,15 @@ func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
 	canonicalModel ...string,
 ) (int, bool) {
 	statusCode := openAIStreamFailureStatus(payload, message)
+	if account != nil && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey &&
+		account.IsPoolMode() && isOpenAIStreamTimeoutEvent(payload) {
+		model := firstNonEmpty(canonicalModel...)
+		if model == "" {
+			model = firstNonEmpty(gjson.GetBytes(payload, "model").String(), gjson.GetBytes(payload, "response.model").String())
+		}
+		s.recordOpenAIAccountModelTransientFailureWithInitialCooldown(account, model, time.Now(), openAIModelTransientShortCooldown, "upstream_stream_timeout")
+		return http.StatusServiceUnavailable, false
+	}
 	if transientStatus := s.openAIAPIKeyTransientStreamStatus(account, payload, message); transientStatus != 0 {
 		statusCode = transientStatus
 		ctx := context.Background()
@@ -1754,6 +1788,9 @@ func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
 
 func openAIStreamFailedEventRetryableOnSameAccount(account *Account, payload []byte, message string) bool {
 	if account == nil {
+		return false
+	}
+	if isOpenAIStreamTimeoutEvent(payload) {
 		return false
 	}
 	// 容量降载是请求级信号，不是账号级故障：上游只是让本次请求稍后再试。
@@ -1869,6 +1906,11 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverErrorWithModel(
 		classificationHeaders = nil
 	}
 	failoverErr := s.newOpenAIAccountFailoverErrorWithClassificationHeaders(account, statusCode, headers, classificationHeaders, payload, message, shouldDisable, retryableOnSameAccount)
+	if isOpenAIStreamTimeoutEvent(payload) {
+		failoverErr.Reason = OpenAIStreamTimeoutReason
+		failoverErr.ClientStatusCode = http.StatusServiceUnavailable
+		failoverErr.ClientMessage = "Upstream response stream timed out; please retry later"
+	}
 	if failoverErr.IsCredentialFailure() || failoverErr.RequestScopedTransient {
 		return failoverErr
 	}
@@ -1988,7 +2030,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	clientOutputStarted := false
 	codexFailureTerminal := account != nil && account.Platform == PlatformOpenAI
 	terminalSchedulingModel := func(payload []byte, message string) string {
-		if mappedModel == "" && s.isOpenAIAPIKeyTransientStreamFailure(account, payload, message) {
+		if mappedModel == "" && (s.isOpenAIAPIKeyTransientStreamFailure(account, payload, message) || isOpenAIStreamTimeoutEvent(payload)) {
 			// Ordinary passthrough leaves mappedModel empty; retain its billing
 			// semantics while using the same canonical model as the scheduler.
 			return canonicalOpenAIAccountSchedulingModel(account, originalModel)
