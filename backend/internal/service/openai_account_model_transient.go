@@ -75,6 +75,10 @@ type openAIAccountModelTransientState struct {
 type openAITransientFailureOptions struct {
 	requireProbe bool
 	reason       string
+	// Opt-in policy; zero values preserve OpenAI behavior.
+	backoffBase      time.Duration
+	backoffCap       time.Duration
+	failureThreshold int
 }
 
 func newOpenAIAccountModelTransientState(maxEntries int) *openAIAccountModelTransientState {
@@ -160,6 +164,23 @@ func (s *openAIAccountModelTransientState) recordFailureWithInitialCooldown(acco
 	}
 	if initialCooldown > cooldown {
 		cooldown = initialCooldown
+	}
+	if len(options) > 0 && options[0].backoffBase > 0 {
+		opts := options[0]
+		threshold := max(1, opts.failureThreshold)
+		if entry.failureStreak < threshold {
+			cooldown = 0
+			entry.requireProbe = false
+		} else {
+			cooldown = opts.backoffBase
+			for n := threshold; n < entry.failureStreak && cooldown < opts.backoffCap; n++ {
+				cooldown = min(cooldown*2, opts.backoffCap)
+			}
+			// Retry-After remains a floor, even above our local backoff cap.
+			if initialCooldown > cooldown {
+				cooldown = initialCooldown
+			}
+		}
 	}
 	if cooldown > 0 {
 		entry.blockUntil = now.Add(cooldown)
