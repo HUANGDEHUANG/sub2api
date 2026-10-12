@@ -1341,6 +1341,65 @@ func isOpenAIUpstreamCapacityShedEvent(payload []byte) bool {
 	return false
 }
 
+// isOpenAIExplicitTransientStreamFailure recognizes only provider-shaped
+// transient failures.  A generic "Upstream request failed" message is not
+// sufficient by itself: some providers use the same text for deterministic
+// request errors, and replaying those requests can duplicate billing.
+func isOpenAIExplicitTransientStreamFailure(payload []byte, message string) bool {
+	if !gjson.ValidBytes(payload) {
+		return false
+	}
+	if isOpenAIContextWindowError(message, payload) || isOpenAIDeterministicEncryptedContentError(payload, message) {
+		return false
+	}
+	code := openAIStreamFailedEventErrorCode(payload)
+	errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.type").String()))
+	if errType == "" {
+		errType = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.type").String()))
+	}
+	for _, marker := range []string{"invalid_request", "content_policy", "policy", "safety"} {
+		if strings.Contains(code, marker) || strings.Contains(errType, marker) {
+			return false
+		}
+	}
+	status := openAIStreamErrorStatus(payload)
+	explicitGenericUpstreamFailure := (code == "upstream_error" || errType == "upstream_error") && strings.EqualFold(strings.TrimSpace(message), "upstream request failed")
+	structuredUpstreamError := explicitGenericUpstreamFailure || code == "upstream_http2_stream_error" || code == "upstream_stream_read_error"
+	if status >= http.StatusBadRequest && status < http.StatusInternalServerError && status != http.StatusTooManyRequests && !structuredUpstreamError {
+		return false
+	}
+	if status >= http.StatusInternalServerError || status == http.StatusTooManyRequests || status == 529 {
+		return true
+	}
+	if structuredUpstreamError {
+		return true
+	}
+	combined := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.message").String() + " " +
+		gjson.GetBytes(payload, "response.error.message").String()))
+	for _, marker := range []string{
+		"upstream http/2 stream failed",
+		"upstream service temporarily unavailable",
+		"the service is temporarily unavailable",
+		"our servers are currently overloaded",
+		"service is busy",
+		"stream_read_error",
+	} {
+		if strings.Contains(combined, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func isOpenAIDeterministicEncryptedContentError(payload []byte, message string) bool {
+	combined := strings.ToLower(strings.TrimSpace(message + " " +
+		gjson.GetBytes(payload, "error.code").String() + " " +
+		gjson.GetBytes(payload, "response.error.code").String()))
+	return strings.Contains(combined, "invalid_encrypted_content") ||
+		strings.Contains(combined, "thinking_signature_invalid") ||
+		strings.Contains(combined, "encrypted content could not be verified")
+}
+
 func logOpenAICapacityFailoverSuppressed(
 	ctx context.Context,
 	account *Account,
@@ -1591,6 +1650,9 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	if isOpenAIContextWindowError(message, payload) {
 		return false
 	}
+	if isOpenAIDeterministicEncryptedContentError(payload, message) {
+		return false
+	}
 	if isOpenAIUpstreamAccessStateError(message, payload) {
 		return true
 	}
@@ -1605,6 +1667,9 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 		return true
 	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
+		return true
+	}
+	if isOpenAIExplicitTransientStreamFailure(payload, message) {
 		return true
 	}
 	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
@@ -1643,6 +1708,9 @@ func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
 	if isOpenAIContextWindowError(message, payload) {
 		return false
 	}
+	if isOpenAIDeterministicEncryptedContentError(payload, message) {
+		return false
+	}
 	if isOpenAIUpstreamAccessStateError(message, payload) {
 		return true
 	}
@@ -1665,6 +1733,9 @@ func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
 		return true
 	}
 	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
+		return true
+	}
+	if isOpenAIExplicitTransientStreamFailure(payload, message) {
 		return true
 	}
 	combined := strings.ToLower(strings.TrimSpace(message + " " +

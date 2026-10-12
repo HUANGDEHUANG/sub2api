@@ -300,6 +300,42 @@ func TestOpenAIStreamPreOutputTimeBudgetErrorRetries(t *testing.T) {
 	require.True(t, openAIStreamErrorEventShouldFailover(payload, message))
 }
 
+func TestOpenAIExplicitTransientStreamFailuresFailOver(t *testing.T) {
+	tests := []string{
+		`{"type":"response.failed","response":{"error":{"code":"upstream_error","message":"Upstream request failed"}}}`,
+		`{"type":"error","error":{"type":"upstream_error","message":"Upstream request failed"}}`,
+		`{"type":"error","error":{"code":"upstream_http2_stream_error","message":"Upstream HTTP/2 stream failed"}}`,
+		`{"type":"response.failed","response":{"error":{"status_code":503,"message":"The service is temporarily unavailable"}}}`,
+	}
+	for _, raw := range tests {
+		payload := []byte(raw)
+		require.True(t, openAIStreamFailedEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload)))
+		require.True(t, openAIStreamErrorEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload)))
+	}
+}
+
+func TestOpenAIExplicitTransientStreamFailuresDoNotRetryDeterministicErrors(t *testing.T) {
+	tests := []string{
+		`{"type":"response.failed","response":{"error":{"code":"invalid_encrypted_content","message":"The encrypted content could not be verified"}}}`,
+		`{"type":"response.failed","response":{"error":{"code":"context_length_exceeded","message":"context window exceeded"}}}`,
+		`{"type":"response.failed","response":{"error":{"type":"invalid_request_error","code":"invalid_request","message":"Upstream request failed because parameter x is invalid"}}}`,
+	}
+	for _, raw := range tests {
+		payload := []byte(raw)
+		message := extractOpenAISSEErrorMessage(payload)
+		require.False(t, openAIStreamFailedEventShouldFailover(payload, message))
+		require.False(t, openAIStreamErrorEventShouldFailover(payload, message))
+	}
+}
+
+func TestOpenAIHTTPBadRequestGenericUpstreamErrorDoesNotFailOver(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	account := newOpenAIUpstreamErrorTestAccount()
+	body := []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`)
+	require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(account, http.StatusBadRequest, "Upstream request failed", body))
+	require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(account, http.StatusBadRequest, "Upstream request failed", []byte(`{"error":{"type":"invalid_request_error","code":"invalid_encrypted_content","message":"Upstream request failed"}}`)))
+}
+
 func TestOpenAIStream403FailoverRequiresStructuredAccountCredentialSignal(t *testing.T) {
 	tests := []struct {
 		name    string

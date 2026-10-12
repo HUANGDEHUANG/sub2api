@@ -281,6 +281,12 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(account *Acc
 	if isOpenAIRequestBodyTooLargeError(statusCode, upstreamMsg, upstreamBody) {
 		return true
 	}
+	// Some relays incorrectly return HTTP 400 for a structured transport or
+	// temporary upstream failure.  Only rotate for the explicit transient
+	// signatures; arbitrary 400 request errors remain deterministic.
+	if statusCode == http.StatusBadRequest && isOpenAIExplicitTransientHTTPBadRequest(upstreamBody, upstreamMsg) {
+		return true
+	}
 	// A missing model is account/provider availability, not a malformed client
 	// request. Keep this unconditional exception inside the OpenAI-compatible
 	// gateway and require an eligible account so Anthropic/Gemini paths retain
@@ -298,6 +304,21 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(account *Acc
 		return true
 	}
 	return isOpenAITransientProcessingError(statusCode, upstreamMsg, upstreamBody)
+}
+
+// isOpenAIExplicitTransientHTTPBadRequest only permits a 400 response to use
+// the stream classifier when the payload is visibly an SSE terminal event.
+// Ordinary JSON 400 bodies with the generic "Upstream request failed" text
+// remain deterministic client errors and must not be replayed.
+func isOpenAIExplicitTransientHTTPBadRequest(body []byte, message string) bool {
+	if !gjson.ValidBytes(body) {
+		return false
+	}
+	eventType := strings.TrimSpace(gjson.GetBytes(body, "type").String())
+	if eventType != "error" && eventType != "response.failed" {
+		return false
+	}
+	return isOpenAIExplicitTransientStreamFailure(body, message)
 }
 
 func isOpenAICompatibleModelNotFound400(respBody []byte) bool {
