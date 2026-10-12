@@ -3087,6 +3087,8 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	var result struct {
 		Data []struct {
 			B64JSON       string `json:"b64_json"`
+			URL           string `json:"url"`
+			MIMEType      string `json:"mime_type"`
 			RevisedPrompt string `json:"revised_prompt"`
 		} `json:"data"`
 	}
@@ -3098,17 +3100,31 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 		return s.sendErrorAndEnd(c, "No images returned from API")
 	}
 
+	imageCount := 0
 	for _, item := range result.Data {
 		if item.RevisedPrompt != "" {
 			s.sendEvent(c, TestEvent{Type: "content", Text: item.RevisedPrompt})
 		}
 		if item.B64JSON != "" {
+			mimeType := strings.TrimSpace(item.MIMEType)
+			if mimeType == "" {
+				mimeType = "image/png"
+			}
 			s.sendEvent(c, TestEvent{
 				Type:     "image",
-				ImageURL: "data:image/png;base64," + item.B64JSON,
-				MimeType: "image/png",
+				ImageURL: "data:" + mimeType + ";base64," + item.B64JSON,
+				MimeType: mimeType,
 			})
+			imageCount++
+			continue
 		}
+		if imageURL := strings.TrimSpace(item.URL); imageURL != "" {
+			s.sendEvent(c, TestEvent{Type: "image", ImageURL: imageURL, MimeType: strings.TrimSpace(item.MIMEType)})
+			imageCount++
+		}
+	}
+	if imageCount == 0 {
+		return s.sendErrorAndEnd(c, "API response contained no usable image data or URL")
 	}
 
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
